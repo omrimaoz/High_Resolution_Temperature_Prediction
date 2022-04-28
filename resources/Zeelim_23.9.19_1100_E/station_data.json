@@ -1,0 +1,18 @@
+{
+    "flight_no": "",
+    "julian_day": "266",
+    "timezone": "2",
+    "habitat": "desert",
+    "wind_speed": "1.62",
+    "wind_dir": "55.49",
+    "temperature": "306.71",
+    "humidity": "35.6",
+    "dewpoint": "289.54",
+    "pressure": "1042.19",
+    "radiation": "905.53",
+    "IR_temp": "323.31",
+    "Bsoh": "33.87",
+    "Bsot": "319.551",
+    "Bsuh": "17.237",
+    "Bsut": "325.048"
+}
