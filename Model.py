@@ -12,13 +12,13 @@ class Model(torch.nn.Module):
         self.fc = nn.Linear(256, 1)
         self.dropout = nn.Dropout(0.2)
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x = self.relu(self.linear1(x))
         x = self.relu(self.linear2(x))
         x = self.relu(self.linear3(x))
-        x = self.relu(self.linear4(x))
+        x = self.sigmoid(self.linear4(x))
         x = self.dropout(x)
         x = self.fc(x)
         return x

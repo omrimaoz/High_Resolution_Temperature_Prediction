@@ -15,7 +15,7 @@ from Model import Model
 ROUND_CONST = 3
 BATCH_SIZE = 0
 epochs = 50
-lr = 0.0005
+lr = 0.05
 
 
 def train_model(model, criterion, train_loader, valid_loader):
@@ -43,9 +43,9 @@ def train_model(model, criterion, train_loader, valid_loader):
         end = time.time()
         print('epoch: {epoch}, train_loss: {train_loss}, val_loss: {val_loss}, val_acc: {val_acc},'
               ' MAE: {MAE}, MSE: {MSE} time: {time}s'.format(
-            epoch=epoch, train_loss=np.round(sum_loss / total, ROUND_CONST), val_loss=np.round(val_loss, ROUND_CONST),
-            val_acc=np.round(val_acc, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
-            MSE=np.round(MSE, ROUND_CONST), time=int(end-start)))
+                epoch=epoch, train_loss=np.round(sum_loss / total, ROUND_CONST), val_loss=np.round(val_loss, ROUND_CONST),
+                val_acc=np.round(val_acc, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
+                MSE=np.round(MSE, ROUND_CONST), time=int(end-start)))
 
 
 def validate_model(model, criterion, valid_loader):
@@ -75,7 +75,7 @@ def main():
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X, y, normalize = prepare_data(100000)
+    X, y = prepare_data(100000)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X.shape[0] // 10
     X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2)
@@ -85,7 +85,7 @@ def main():
     val_dl = DataLoader(valid_ds, batch_size=batch_size)
 
     model = Model(X.shape[1])
-    train_model(model, criterion=nn.MSELoss(), train_loader=train_dl, valid_loader=val_dl)
+    train_model(model, criterion=nn.L1Loss(), train_loader=train_dl, valid_loader=val_dl)
 
 
 if __name__ == '__main__':

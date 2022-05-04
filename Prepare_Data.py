@@ -54,9 +54,7 @@ def prepare_data(samples, dir=None):
             y[k] = label_data[i][j]
             k += 1
 
-    normalize = np.average(X, axis=0)
-    X = X - np.average(X, axis=0)
-    return X, y, normalize
+    return X, y
 
 
 def create_data(dir):
