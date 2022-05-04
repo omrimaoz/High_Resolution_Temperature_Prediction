@@ -54,7 +54,9 @@ def prepare_data(samples, dir=None):
             y[k] = label_data[i][j]
             k += 1
 
-        return X, y
+    normalize = np.average(X, axis=0)
+    X = X - np.average(X, axis=0)
+    return X, y, normalize
 
 
 def create_data(dir):
@@ -71,5 +73,7 @@ def create_data(dir):
     with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
         station_data = json.loads(f.read())
 
+    dir_data['RealSolar'] = np.average(dir_data['RealSolar'][1:-1, 1:-1]) * (dir_data['RealSolar'] < 0) * 1. +\
+                        dir_data['RealSolar'] * (dir_data['RealSolar'] >= 0) * 1.
     return dir_data, station_data, label_data
 

@@ -1,7 +1,10 @@
 import csv
 import json
 import os
+import numpy as np
 
+
+DEGREE_ERROR = 2
 
 def csv_to_json(path):
     rows = []
@@ -30,10 +33,11 @@ def csv_to_json(path):
         for option in ["", "_W", "_E"]:
             if row[0] + option in os.listdir("./resources"):
                 with open("./resources/{dir}/station_data.json".format(dir=row[0] + option), 'w') as data_file:
-                    # json.dump(data_json, data_file, indent=4, separators=(',', ': '))
+                    json.dump(data_json, data_file, indent=4, separators=(',', ': '))
 
 
 def metrics(predictions, actuals):
-
-
-    return accuarcy, average_diff
+    MAE = float(np.average(np.abs(actuals - predictions)))  # Mean Absolute Error - Average Euclidean distances between two points
+    MSE = float(np.average(np.power(actuals - predictions, 2)))
+    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR) * 1.)) / actuals.shape[0])
+    return accuracy, MAE, MSE
