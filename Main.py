@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torch import nn
 import torch
 
+from IRMaker import IRMaker
 from Prepare_Data import prepare_data
 from utils import csv_to_json, metrics
 from sklearn.model_selection import train_test_split
@@ -14,7 +15,7 @@ from Model import Model
 
 ROUND_CONST = 3
 BATCH_SIZE = 0
-epochs = 50
+epochs = 5
 lr = 0.05
 
 
@@ -86,7 +87,9 @@ def main():
 
     model = Model(X.shape[1])
     train_model(model, criterion=nn.L1Loss(), train_loader=train_dl, valid_loader=val_dl)
-
+    return model
 
 if __name__ == '__main__':
-    main()
+    dir = 'Zeelim_29.5.19_1730_W'
+    model = main()
+    IRMaker(dir).generate_image(model)

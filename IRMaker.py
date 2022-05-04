@@ -2,7 +2,6 @@ import json
 
 import numpy as np
 import tifffile as tiff
-from collections import OrderedDict
 
 from torch.utils.data import DataLoader
 
@@ -17,7 +16,7 @@ class IRMaker(object):
                              "IR_temp"]
     data_maps = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
 
-    def __init__(self, dir, train):
+    def __init__(self, dir, train=False):
         super(IRMaker, self).__init__()
         self.dir = dir
         self.Height = tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir))
@@ -63,16 +62,15 @@ class IRMaker(object):
         j = 0
         for x, y in data_loader:
             x, y = x.float(), y.float()
-            y_hat = model(x).detach()
+            y_hat = model(x)
             pred = np.array(y_hat.detach()).reshape(-1)
             for pixel in pred:
                 predicted_IR[i][j] = pixel
                 j += 1
-                if j > predicted_IR.shape[1]:
+                if j >= predicted_IR.shape[1]:
                     j = 0
                     i += 1
-        tiff.imsave(self.dir + "/PredictedIR.tif", predicted_IR)
-
+        tiff.imsave('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir), predicted_IR)
 
 
     def get_data_dict(self):
