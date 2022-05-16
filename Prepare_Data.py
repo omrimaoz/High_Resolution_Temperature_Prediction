@@ -6,9 +6,7 @@ from PIL import Image
 from collections import OrderedDict
 import numpy as np
 from IRMaker import IRMaker
-
-
-BASE_DIR = './resources'
+from utils import *
 
 data_map = OrderedDict({
     'Height': None,
@@ -57,23 +55,3 @@ def prepare_data(samples, dir=None):
             k += 1
 
     return X, y
-
-
-# def create_data(dir):
-#     dir_data = data_map.copy()
-#     dir_data['Height'] = tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir))
-#     dir_data['RealSolar'] = tiff.imread('{base_dir}/{dir}/real_solar.tif'.format(base_dir=BASE_DIR, dir=dir))
-#     dir_data['Shade'] = tiff.imread('{base_dir}/{dir}/shade.tif'.format(base_dir=BASE_DIR, dir=dir))
-#     dir_data['SkyView'] = tiff.imread('{base_dir}/{dir}/skyview.tiff'.format(base_dir=BASE_DIR, dir=dir))
-#     dir_data['SLP'] = tiff.imread('{base_dir}/{dir}/SLP.tif'.format(base_dir=BASE_DIR, dir=dir))
-#     dir_data['TGI'] = tiff.imread('{base_dir}/{dir}/TGI.tif'.format(base_dir=BASE_DIR, dir=dir))
-#
-#     label_data = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir)) + 273.15
-#
-#     with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
-#         station_data = json.loads(f.read())
-#
-#     dir_data['RealSolar'] = np.average(dir_data['RealSolar'][1:-1, 1:-1]) * (dir_data['RealSolar'] < 0) * 1. +\
-#                         dir_data['RealSolar'] * (dir_data['RealSolar'] >= 0) * 1.
-#     return dir_data, station_data, label_data
-

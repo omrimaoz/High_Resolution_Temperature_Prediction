@@ -1,13 +1,20 @@
 import csv
 import json
 import os
+import re
+
 import numpy as np
 import tifffile as tiff
-
+import torch
 
 ROUND_CONST = 3
-BASE_DIR = './resources'
 DEGREE_ERROR = 2
+
+BASE_DIR = './resources'
+MODELS_DIR = './models'
+CHECKPOINTS_DIR = './checkpoints'
+MODEL_EXTENSION = '.pt'
+
 
 def csv_to_json(path):
     rows = []
@@ -32,8 +39,8 @@ def csv_to_json(path):
             if row[i] in locations:
                 data_json[fields[i]] = locations[row[i]]
             else:
-                data_json[fields[i]] = float(row[i]) if row[i] else 0.
-        for option in ["", "_W", "_E"]:
+                data_json[fields[i]] = float(row[i]) / 10 if row[i] else 0.
+        for option in ["", "_W", "_E", "_N", "_S"]:
             if row[0] + option in os.listdir("./resources"):
                 with open("./resources/{dir}/station_data.json".format(dir=row[0] + option), 'w') as data_file:
                     json.dump(data_json, data_file, indent=4, separators=(',', ': '))
@@ -55,3 +62,17 @@ def evaluate_prediceted_IR(dir):
         Accuracy=np.round(Accuracy, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
         MSE=np.round(MSE, ROUND_CONST)
     ))
+
+def get_best_model():
+    listdir = os.listdir(MODELS_DIR)
+    acceptable_models = re.compile('(.+mae[0-9\.]+\.pt)')
+    score_regex = re.compile('mae([0-9\.]+)\.pt')
+    models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
+    scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
+    idx = np.argmin(np.array(scores, dtype=float))
+    model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
+    return model
+
+
+
+
