@@ -100,7 +100,7 @@ def main():
     train_model(ir_class_model, criterion=nn.CrossEntropyLoss(), train_loader=train_dl, valid_loader=val_dl)
 
 if __name__ == '__main__':
-    dir = 'Mishmar_3.3.20_0910_W'
+    dir = 'Zeelim_7.11.19_1550_W'
     main()
     model = get_best_model()
     IRMaker(dir).generate_image(model)

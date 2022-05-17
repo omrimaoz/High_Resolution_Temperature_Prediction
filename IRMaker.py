@@ -10,9 +10,10 @@ from utils import *
 
 
 class IRMaker(object):
-    STATION_PARAMS_TO_USE = ["julian_day", 'time', "habitat", "wind_speed", "temperature", "humidity", "pressure",
-                             "radiation",
-                             "IR_temp"]
+    # STATION_PARAMS_TO_USE = ["julian_day", 'time', "habitat", "wind_speed", "temperature", "humidity", "pressure",
+    #                          "radiation",
+    #                          "IR_temp"]
+    STATION_PARAMS_TO_USE = ["julian_day", "temperature", "radiation", "IR_temp"]
     data_maps = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
 
     def __init__(self, dir, train=False):

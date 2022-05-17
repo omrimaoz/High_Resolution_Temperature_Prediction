@@ -8,7 +8,7 @@ import tifffile as tiff
 import torch
 
 ROUND_CONST = 3
-DEGREE_ERROR = 2
+DEGREE_ERROR = 1
 IR_TEMP_FACTOR = 3
 
 BASE_DIR = './resources'
