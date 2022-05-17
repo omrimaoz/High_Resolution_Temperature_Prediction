@@ -104,3 +104,4 @@ if __name__ == '__main__':
     main()
     model = get_best_model()
     IRMaker(dir).generate_image(model)
+    evaluate_prediceted_IR("Zeelim_7.11.19_1550_W")
