@@ -16,53 +16,41 @@ from Models import *
 
 ROUND_CONST = 3
 BATCH_SIZE = 0
-epochs = 50
-lr = 1
-
-
-def lambda_scheduler(epoch):
-    if epoch < 7:
-        return 0.1
-    if epoch < 15:
-        return 0.005
-    return 0.0001
 
 
 def train_model(model, criterion, train_loader, valid_loader):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=lr)
-    lambda1 = lambda epoch: 0.8 ** epoch
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_scheduler)
+    optimizer = torch.optim.Adam(parameters, lr=model.lr)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
     MAE = None
-    for epoch in range(epochs):
+    for epoch in range(model.epochs):
         start = time.time()
         model.train()
         sum_loss = 0.0
         total = 0
         for batch, pack in enumerate(train_loader):
-            x, y = pack #model.unpack(pack)
-            x, y = x.float(), y.float()
+            x, y = model.unpack(pack)
             y_pred = model(x)
 
             loss = criterion(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step(epoch)
 
             sum_loss += loss.item() * y.shape[0]
             total += y.shape[0]
 
         scheduler.step()
-        print(optimizer.param_groups[0]["lr"])
+        epoch_lr = optimizer.param_groups[0]["lr"]
         val_loss, val_acc, MAE, MSE = validate_model(model, criterion, valid_loader)
         end = time.time()
         print('epoch: {epoch}, train_loss: {train_loss}, val_loss: {val_loss}, val_acc: {val_acc},'
-              ' MAE: {MAE}, MSE: {MSE} time: {time}s'.format(
+              ' MAE: {MAE}, MSE: {MSE}, time: {time}s, lr: {lr}'.format(
                 epoch=epoch, train_loss=np.round(sum_loss / total, ROUND_CONST), val_loss=np.round(val_loss, ROUND_CONST),
                 val_acc=np.round(val_acc, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
-                MSE=np.round(MSE, ROUND_CONST), time=int(end-start)))
-    path = '{dir}/model_{time}'.format(dir=MODELS_DIR, time=datetime.now().strftime('%d%m%y'))
+                MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
+    path = '{dir}/{model}_{time}'.format(dir=MODELS_DIR, model=model.name,
+                                         time=datetime.now().strftime('%d%m%y'))
     if MAE:
         path += '_mae{mae}'.format(mae=np.round(MAE, ROUND_CONST))
     path += MODEL_EXTENSION
@@ -76,13 +64,13 @@ def validate_model(model, criterion, valid_loader):
     pred = None
     actual = None
     for x, y in valid_loader:
-        x, y = x.float(), y.float()
+        x, y = model.unpack((x, y))
         actual = np.array(y) if actual is None else np.concatenate((actual, y))
         y_hat = model(x)
 
         loss = criterion(y_hat, y)
 
-        y_hat = y_hat.detach().view(-1)
+        y_hat = model.predict(y_hat)
         pred = np.array(y_hat) if pred is None else np.concatenate((pred, y_hat))
         total += y.shape[0]
         sum_loss += loss.item() * y.shape[0]
@@ -112,7 +100,7 @@ def main():
     train_model(ir_class_model, criterion=nn.CrossEntropyLoss(), train_loader=train_dl, valid_loader=val_dl)
 
 if __name__ == '__main__':
-    dir = 'Zeelim_29.5.19_1730_W'
+    dir = 'Mishmar_3.3.20_0910_W'
     main()
     model = get_best_model()
     IRMaker(dir).generate_image(model)

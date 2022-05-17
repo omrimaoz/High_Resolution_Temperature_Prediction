@@ -9,6 +9,7 @@ import torch
 
 ROUND_CONST = 3
 DEGREE_ERROR = 2
+IR_TEMP_FACTOR = 3
 
 BASE_DIR = './resources'
 MODELS_DIR = './models'
@@ -39,6 +40,8 @@ def csv_to_json(path):
             if row[i] in locations:
                 data_json[fields[i]] = locations[row[i]]
             else:
+                if 'temp' in fields[i]:
+                    row[i] = (float(row[i]) - 273.5) * IR_TEMP_FACTOR
                 data_json[fields[i]] = float(row[i]) / 10 if row[i] else 0.
         for option in ["", "_W", "_E", "_N", "_S"]:
             if row[0] + option in os.listdir("./resources"):
@@ -47,9 +50,9 @@ def csv_to_json(path):
 
 
 def metrics(predictions, actuals):
-    MAE = float(np.average(np.abs(actuals - predictions)))  # Mean Absolute Error - Average Euclidean distances between two points
-    MSE = float(np.average(np.power(actuals - predictions, 2)))
-    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR) * 1.)) / actuals.shape[0])
+    MAE = float(np.average(np.abs(actuals - predictions))) / IR_TEMP_FACTOR  # Mean Absolute Error - Average Euclidean distances between two points
+    MSE = float(np.average(np.power(actuals - predictions, 2))) / (IR_TEMP_FACTOR ** 2)
+    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR * IR_TEMP_FACTOR) * 1.)) / actuals.shape[0])
     return accuracy, MAE, MSE
 
 

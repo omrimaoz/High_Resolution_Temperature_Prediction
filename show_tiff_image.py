@@ -4,7 +4,7 @@ import numpy as np
 import tifffile as tiff
 from PIL import Image
 
-path = 'Mishmar_3.3.20_0910_W/dynamic_output_raster.tif'
+path = 'Zeelim_29.5.19_1730_W/IR.tif'
 
 image = tiff.imread('./resources/{path}'.format(path=path))
 image = image - np.min(image)

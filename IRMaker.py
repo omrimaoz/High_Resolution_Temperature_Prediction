@@ -27,15 +27,13 @@ class IRMaker(object):
 
         self.IR = None
         if train:
-            self.IR = (tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir)) + 273.15)
+            self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir)) * IR_TEMP_FACTOR
 
         with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
             self.station_data = json.loads(f.read())
 
         self.RealSolar = np.average(self.RealSolar[1:-1, 1:-1]) * (self.RealSolar < 0) * 1. + \
                                 self.RealSolar * (self.RealSolar >= 0) * 1. / 1000
-
-
 
     def generate_image(self, model):
         model.eval()
@@ -63,30 +61,27 @@ class IRMaker(object):
         for x, y in data_loader:
             x, y = x.float(), y.float()
             y_hat = model(x)
-            pred = np.array(y_hat.detach()).reshape(-1)
+            pred = model.predict(y_hat)
             for pixel in pred:
                 predicted_IR[i][j] = pixel
                 j += 1
                 if j >= predicted_IR.shape[1]:
                     j = 0
                     i += 1
-        predicted_IR = (predicted_IR + 273.15) * 10
+        predicted_IR = predicted_IR / IR_TEMP_FACTOR
         tiff.imsave('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir), predicted_IR)
-
-        tiff.imsave('{base_dir}/{dir}/IRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
-                    self.get_grayscale(self.IR))
         tiff.imsave('{base_dir}/{dir}/PredictedIRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
                     self.get_grayscale(predicted_IR))
-        self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir)) + 273.15
-        metrics(predicted_IR, self.IR)
-
+        self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
+        tiff.imsave('{base_dir}/{dir}/IRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
+                    self.get_grayscale(self.IR))
 
     def get_data_dict(self):
         return [self.Height, self.RealSolar, self.Shade, self.SkyView, self.SLP, self.TGI]
 
     def get_grayscale(self, image):
-        image = image - image.min
-        image = (image / image.max) * 255
+        image = image - np.min(image)
+        image = (image / np.max(image)) * 255
         return image.astype(np.int8)
 
 
