@@ -79,5 +79,5 @@ def get_best_model():
     return model
 
 
-
-
+def pad_image(image_array, pad_width):
+    return np.pad(image_array, pad_width)
