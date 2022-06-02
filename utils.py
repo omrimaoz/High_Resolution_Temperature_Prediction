@@ -10,6 +10,8 @@ import torch
 ROUND_CONST = 3
 DEGREE_ERROR = 1
 IR_TEMP_FACTOR = 3
+IR_TEMP_DIFF = 0.2
+FRAME_WINDOW = 25
 
 BASE_DIR = './resources'
 MODELS_DIR = './models'

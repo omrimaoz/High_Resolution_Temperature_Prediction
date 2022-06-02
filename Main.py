@@ -84,7 +84,7 @@ def main():
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X, y = prepare_data(50000)
+    X, y = prepare_data(5000, 'RPP')
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X.shape[0] // 10
     X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2)
@@ -100,8 +100,7 @@ def main():
     train_model(ir_class_model, criterion=nn.CrossEntropyLoss(), train_loader=train_dl, valid_loader=val_dl)
 
 if __name__ == '__main__':
-    dir = 'Zeelim_7.11.19_1550_W'
+    dir = 'Zeelim_30.5.19_0630_E'
     main()
     model = get_best_model()
     IRMaker(dir).generate_image(model)
-    evaluate_prediceted_IR("Zeelim_7.11.19_1550_W")

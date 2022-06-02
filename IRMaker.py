@@ -76,6 +76,7 @@ class IRMaker(object):
         self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
         tiff.imsave('{base_dir}/{dir}/IRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
                     self.get_grayscale(self.IR))
+        evaluate_prediceted_IR(self.dir)
 
     def get_data_dict(self):
         return [self.Height, self.RealSolar, self.Shade, self.SkyView, self.SLP, self.TGI]
