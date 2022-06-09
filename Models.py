@@ -4,13 +4,31 @@ from torch import nn
 from utils import IR_TEMP_FACTOR
 
 
-class IRValue(torch.nn.Module):
+class TemperatureModel(torch.nn.Module):
+    cache = {
+        'accuracy': list(),
+        'MAE': list(),
+        'MSE': list(),
+        'train_prediction': None,
+        'actual_mean': 0.
+    }
+
+    def __init__(self, train_loader, valid_loader, inputs_dim, outputs_dim, criterion):
+        super().__init__()
+        self.train_loader = train_loader
+        self.valid_loader = valid_loader
+        self.inputs_dim = inputs_dim
+        self.outputs_dim = outputs_dim
+        self.criterion = criterion
+
+
+class IRValue(TemperatureModel):
     name = 'IRValue'
     epochs = 50
     lr = 1
 
-    def __init__(self, inputs_dim):
-        super().__init__()
+    def __init__(self, train_loader, valid_loader, inputs_dim, outputs_dim=1, criterion=nn.MSELoss()):
+        super(IRValue, self).__init__(train_loader, valid_loader, inputs_dim, outputs_dim, criterion)
         self.linear1 = nn.Linear(inputs_dim, 256)
         self.linear2 = nn.Linear(256, 256)
         # self.linear3 = nn.Linear(128, 256)
@@ -43,13 +61,14 @@ class IRValue(torch.nn.Module):
             return 0.005
         return 0.0001
 
-class IRClass(torch.nn.Module):
+
+class IRClass(TemperatureModel):
     name = 'IRClass'
-    epochs = 70
+    epochs = 20
     lr = 1
 
-    def __init__(self, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR):
-        super().__init__()
+    def __init__(self, train_loader, valid_loader, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):
+        super(IRClass, self).__init__(train_loader, valid_loader, inputs_dim, outputs_dim, criterion)
         self.linear1 = nn.Linear(inputs_dim, 256)
         self.linear2 = nn.Linear(256, 256)
         self.fc = nn.Linear(256, outputs_dim)

@@ -72,11 +72,11 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
             if dir_data[0].shape[0] != 1000:
                 print(1)
 
-    return X, y
+    return X[:k], y[:k]
 
 
 def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X = np.zeros(shape=(num_samples * len(listdir) + (FRAME_WINDOW ** 2 ) - 1, inputs), dtype=np.float)
+    X = np.zeros(shape=(num_samples * len(listdir) + (FRAME_WINDOW ** 2) - 1, inputs), dtype=np.float)
     y = np.zeros(shape=(num_samples * len(listdir)), dtype=np.float)
     k = 0
 
@@ -105,7 +105,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
     return X, y
 
 
-def prepare_data(num_samples, sampling_method, dir=None,):
+def prepare_data(num_samples, sampling_method, dir):
     listdir = [dir] if dir else [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
     for dir in listdir:
         if not os.path.exists('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir)):
