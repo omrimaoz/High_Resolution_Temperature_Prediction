@@ -6,17 +6,22 @@ import re
 import numpy as np
 import tifffile as tiff
 import torch
+from matplotlib import pyplot as plt
 
 ROUND_CONST = 3
-DEGREE_ERROR = 1
+BATCH_SIZE = 0
+DEGREE_ERROR = 2
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
 FRAME_WINDOW = 25
+
+TO_GRAPH = True
 
 BASE_DIR = './resources'
 MODELS_DIR = './models'
 CHECKPOINTS_DIR = './checkpoints'
 MODEL_EXTENSION = '.pt'
+JSON_EXTENSION = '.json'
 
 
 def csv_to_json(path):
@@ -68,16 +73,109 @@ def evaluate_prediceted_IR(dir):
         MSE=np.round(MSE, ROUND_CONST)
     ))
 
-def get_best_model():
+
+def get_best_model(model_name):
     listdir = os.listdir(MODELS_DIR)
-    acceptable_models = re.compile('(.+mae[0-9\.]+\.pt)')
-    score_regex = re.compile('mae([0-9\.]+)\.pt')
+    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
+    score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
     models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
     scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
+
+    if not models:
+        return None
+
     idx = np.argmin(np.array(scores, dtype=float))
     model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
+    with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
+        model.cache = json.loads(f.read())
+        model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
     return model
 
 
-def pad_image(image_array, pad_width):
-    return np.pad(image_array, pad_width)
+def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v_label=None):
+    for i, t in enumerate(x):
+        plt.scatter(y, x[i], c=colors[i], marker=markers[i], label=labels[i])
+    if v_val:
+        plt.axvline(x=v_val, color='orange', linestyle='--', lw=4, label='{}={}'.format(v_label, v_val))
+    plt.title(title)
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.legend(loc=0)
+    plt.show()  # uncomment if you want to show graphs
+
+def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None):
+    plt.hist(x, bins, color=color)
+    if v_val:
+        plt.axvline(x=v_val, color='orange', linestyle='--', lw=4, label='{}={}'.format(v_label, v_val))
+    plt.title(title)
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.legend(loc=0)
+    plt.show()  # uncomment if you want to show graphs
+
+
+def create_graphs(cache):
+    '''
+    1st graph: Accuracy as function of MAE/MSE
+    '''
+    to_graph(y=cache['accuracy'],
+             x=[cache['MAE'], cache['MSE']],
+             title='Accuracy as function of MAE/MSE',
+             ylabel='Accuracy',
+             xlabel='MAE/MSE',
+             colors=['b', 'r'],
+             markers=['.', '*'],
+             labels=['MAE', 'MSE']
+             )
+
+    '''
+    2nd graph: Actual temperature as function of diff (prediction-actual)
+    '''
+    train_validation = cache['train_prediction'].copy()
+    train_validation[1] = train_validation[1] - train_validation[0]
+    train_validation = train_validation[:, train_validation[0].argsort()]
+    to_graph(y=train_validation[0],
+             x=[train_validation[1]],
+             title='Actual temperature as function of diff (prediction-actual)',
+             ylabel='Prediction - Actual',
+             xlabel='Actual temperature value',
+             colors=['b'],
+             markers=['.'],
+             labels=['diff (prediction-actual)'],
+             v_val=cache['actual_mean'],
+             v_label='Actual Mean'
+             )
+
+    '''
+    3nd graph: diff |prediction-actual| histogram
+    '''
+    train_validation = cache['train_prediction'].copy()
+    train_validation[1] = np.abs(train_validation[1] - train_validation[0])
+    train_validation = train_validation[:, train_validation[0].argsort()]
+    to_histogram(
+        x=train_validation[1],
+        bins=int((np.max(train_validation[1]) - np.min(train_validation[1]))/IR_TEMP_DIFF),
+        title='diff |prediction-actual| histogram',
+        ylabel='counts',
+        xlabel='diff |prediction-actual|',
+        color='b',
+    )
+
+    '''
+    4nd graph: Error as function of actual temperature values histogram
+    '''
+    train_validation = cache['train_prediction'].copy()
+    train_validation[1] = np.abs(train_validation[1] - train_validation[0])
+    train_validation = train_validation[:, train_validation[0].argsort()]
+    train_validation = train_validation[:, train_validation[1] > 2]
+
+    to_histogram(
+        x=train_validation[0],
+        bins=int((np.max(train_validation[0]) - np.min(train_validation[0]))/IR_TEMP_DIFF),
+        title='Error as function of actual temperature values histogram',
+        ylabel='counts of errors',
+        xlabel='actual temperature values ',
+        color='b',
+        v_val=cache['actual_mean'],
+        v_label='Actual Mean'
+    )
