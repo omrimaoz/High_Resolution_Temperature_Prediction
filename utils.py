@@ -14,6 +14,7 @@ DEGREE_ERROR = 2
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
 FRAME_WINDOW = 25
+SPLIT_FACTOR = 0.2
 
 TO_GRAPH = True
 
@@ -75,6 +76,9 @@ def evaluate_prediceted_IR(dir):
 
 
 def get_best_model(model_name):
+    if not model_name:
+        return None
+
     listdir = os.listdir(MODELS_DIR)
     acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
     score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
@@ -103,6 +107,7 @@ def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v
     plt.legend(loc=0)
     plt.show()  # uncomment if you want to show graphs
 
+
 def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None):
     plt.hist(x, bins, color=color)
     if v_val:
@@ -121,8 +126,8 @@ def create_graphs(cache):
     to_graph(y=cache['accuracy'],
              x=[cache['MAE'], cache['MSE']],
              title='Accuracy as function of MAE/MSE',
-             ylabel='Accuracy',
-             xlabel='MAE/MSE',
+             ylabel='MAE/MSE',
+             xlabel='Accuracy',
              colors=['b', 'r'],
              markers=['.', '*'],
              labels=['MAE', 'MSE']
