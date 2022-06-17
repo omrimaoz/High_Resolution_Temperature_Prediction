@@ -127,7 +127,7 @@ class IRClass(TemperatureModel):
 
 class ConvNet(TemperatureModel):
     name = 'ConvNet'
-    epochs = 1500
+    epochs = 100
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):

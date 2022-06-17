@@ -58,10 +58,10 @@ def random_sampling_by_method(method, image, num_samples):
 
 
 def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR)), inputs), dtype=np.float)
-    y_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR)), inputs), dtype=np.float)
-    y_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR))), dtype=np.float)
+    X_train = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
+    y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
+    y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     m, n = 0, 0
     means = list()
 
@@ -98,10 +98,10 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
 
 
 def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
-    y_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
-    y_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR))), dtype=np.float)
+    X_train = np.zeros(shape=(int(num_samples * len(listdir)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     m, n = 0, 0
     means = list()
 

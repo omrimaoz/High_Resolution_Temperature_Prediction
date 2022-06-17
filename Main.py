@@ -81,7 +81,8 @@ def validate_model(model):
     actual = None
     for x, y in model.valid_loader:
         x, y, *data = model.unpack((x, y), device)
-        actual = np.array(y) if actual is None else np.concatenate((actual, y))
+        y_cpu = y.cpu()
+        actual = np.array(y_cpu) if actual is None else np.concatenate((actual, y_cpu))
         y_hat = model(x) if not data else model(x, data[0])
 
         loss = model.model_loss(y_hat, y)
@@ -122,7 +123,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
 if __name__ == '__main__':
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('ConvNet', 'SFP', 5000, dir)
+    model = model if model else main('ConvNet', 'RFP', 2000, dir, True)
     # create_graphs(model.cache)
-    dir = 'Zeelim_29.5.19_1730_W'
+    dir = 'Zeelim_30.5.19_0630_E'
     IRMaker(dir).generate_image(model)
