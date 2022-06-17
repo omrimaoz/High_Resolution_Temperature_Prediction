@@ -122,7 +122,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
 if __name__ == '__main__':
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('ConvNet', 'SFP', 50, dir)
+    model = model if model else main('ConvNet', 'SFP', 5000, dir)
     # create_graphs(model.cache)
     dir = 'Zeelim_29.5.19_1730_W'
     IRMaker(dir).generate_image(model)

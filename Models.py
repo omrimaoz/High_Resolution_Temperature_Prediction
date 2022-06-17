@@ -127,7 +127,7 @@ class IRClass(TemperatureModel):
 
 class ConvNet(TemperatureModel):
     name = 'ConvNet'
-    epochs = 100
+    epochs = 1500
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):
@@ -138,7 +138,7 @@ class ConvNet(TemperatureModel):
         # self.bn2 = nn.BatchNorm2d(64)
         self.fc1 = nn.Linear(64 * 9 + 4, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, outputs_dim)
+        self.fc3 = nn.Linear(84, outputs_dim * IR_TEMP_FACTOR)
 
     def forward(self, x, data=torch.Tensor()):
         # x = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), 2)
@@ -164,9 +164,9 @@ class ConvNet(TemperatureModel):
         return torch.max(y_hat, 1)[1]
 
     def lambda_scheduler(self, epoch):
-        if epoch < 40:
+        if epoch < 80:
             return 0.01
-        if epoch < 75:
+        if epoch < 150:
             return 0.001
         return 0.0005
 
