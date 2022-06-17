@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from Loss_Functions import *
 from utils import *
 from IRMaker import IRMaker
+import types
 
 
 class TemperatureModel(torch.nn.Module):
@@ -37,16 +38,16 @@ class TemperatureModel(torch.nn.Module):
         return matrix * mask
 
     def model_loss(self, output, target):
-        if self.criterion.__name__ == 'WMSELoss':
-            means = self.find_close_means(target)
-            output = output.view(-1)
-            return self.criterion(output, target, means)
-        elif self.criterion.__name__ == 'CVLoss':
-            const = 100
-            output = output.view(-1)
-            return self.criterion(output, target, const)
-        else:
-            return self.criterion(output, target)
+        if isinstance(self.criterion, types.FunctionType):
+            if self.criterion.__name__ == 'WMSELoss':
+                means = self.find_close_means(target)
+                output = output.view(-1)
+                return self.criterion(output, target, means)
+            elif self.criterion.__name__ == 'CVLoss':
+                const = 100
+                output = output.view(-1)
+                return self.criterion(output, target, const)
+        return self.criterion(output, target)
 
 
 class IRValue(TemperatureModel):
@@ -154,9 +155,9 @@ class ConvNet(TemperatureModel):
         return x
 
     def unpack(self, pack):
-        X, y, data = pack[0].float()[:, :FRAME_WINDOW * IRMaker.DATA_MAPS_COUNT],\
-                     torch.round(pack[1]).long(), pack[0].float()[:, FRAME_WINDOW * IRMaker.DATA_MAPS_COUNT:]
-        X = X.reshape((pack[0].size()[0], 6, FRAME_WINDOW, FRAME_WINDOW))  # TODO replace with params
+        X, y, data = pack[0].float()[:, :FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT],\
+                     torch.round(pack[1]).long(), pack[0].float()[:, FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:]
+        X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, FRAME_WINDOW, FRAME_WINDOW))  # TODO replace with params
         return X, y, data
 
     def predict(self, y_hat):
