@@ -14,7 +14,9 @@ class IRMaker(object):
     #                          "radiation",
     #                          "IR_temp"]
     STATION_PARAMS_TO_USE = ["julian_day", "temperature", "radiation", "IR_temp"]
+    STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
     data_maps = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
+    DATA_MAPS_COUNT = len(data_maps)
 
     def __init__(self, dir, train=False):
         super(IRMaker, self).__init__()

@@ -5,7 +5,8 @@ from torch import nn
 import torch.nn.functional as F
 
 from Loss_Functions import *
-from utils import IR_TEMP_FACTOR
+from utils import *
+from IRMaker import IRMaker
 
 
 class TemperatureModel(torch.nn.Module):
@@ -128,11 +129,11 @@ class ConvNet(TemperatureModel):
     epochs = 100
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss(), images_dim=1):
-        super(ConvNet, self).__init__(train_loader, valid_loader, images_dim + 4, outputs_dim, criterion)
-        self.conv1 = nn.Conv2d(in_channels=images_dim, out_channels=images_dim * 6, kernel_size=5)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):
+        super(ConvNet, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
+        self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=5)
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
-        self.conv2 = nn.Conv2d(in_channels=images_dim * 6, out_channels=64, kernel_size=5)
+        self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=5)
         # self.bn2 = nn.BatchNorm2d(64)
         self.fc1 = nn.Linear(64 * 9 + 4, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
@@ -153,8 +154,9 @@ class ConvNet(TemperatureModel):
         return x
 
     def unpack(self, pack):
-        X, y, data = pack[0].float()[:, :3750], torch.round(pack[1]).long(), pack[0].float()[:, 3750:]
-        X = X.reshape((pack[0].size()[0], 6, 25, 25))  # TODO replace with params
+        X, y, data = pack[0].float()[:, :FRAME_WINDOW * IRMaker.DATA_MAPS_COUNT],\
+                     torch.round(pack[1]).long(), pack[0].float()[:, FRAME_WINDOW * IRMaker.DATA_MAPS_COUNT:]
+        X = X.reshape((pack[0].size()[0], 6, FRAME_WINDOW, FRAME_WINDOW))  # TODO replace with params
         return X, y, data
 
     def predict(self, y_hat):

@@ -98,9 +98,9 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
 
 
 def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR)), len(IRMaker.data_maps), ((2 * FRAME_RADIUS + 1) ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    X_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR)), len(IRMaker.data_maps), (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
     y_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR)), len(IRMaker.data_maps), ((2 * FRAME_RADIUS + 1) ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR)), len(IRMaker.data_maps), (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
     y_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR))), dtype=np.float)
     m, n = 0, 0
     means = list()
@@ -119,7 +119,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             for k, image in enumerate(dir_data):
-                frame = image[i: i + (2 * FRAME_RADIUS + 1), j: j + (2 * FRAME_RADIUS + 1)].flatten()
+                frame = image[i: i + FRAME_WINDOW, j: j + FRAME_WINDOW].flatten()
                 X_train[m][k] = np.concatenate((frame, np.array(data_samples)))
             y_train[m] = label_data[i][j]
             m += 1
@@ -129,7 +129,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             for k, image in enumerate(dir_data):
-                frame = image[i: i + (2 * FRAME_RADIUS + 1), j: j + (2 * FRAME_RADIUS + 1)].flatten()
+                frame = image[i: i + FRAME_WINDOW, j: j + FRAME_WINDOW].flatten()
                 X_train[n][k] = np.concatenate((frame, np.array(data_samples)))
             y_train[n] = label_data[i][j]
             n += 1

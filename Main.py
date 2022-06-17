@@ -32,8 +32,8 @@ def train_model(model):
         sum_loss = 0.0
         total = 0
         for batch, pack in enumerate(model.train_loader):
-            x, y = model.unpack(pack)
-            y_pred = model(x)
+            x, y, *data = model.unpack(pack)
+            y_pred = model(x, data[0]) if data else model(x)
             y_hat = model.predict(y_pred)
 
             loss = model.model_loss(y_pred, y)
@@ -80,9 +80,9 @@ def validate_model(model):
     pred = None
     actual = None
     for x, y in model.valid_loader:
-        x, y = model.unpack((x, y))
+        x, y, *data = model.unpack((x, y))
         actual = np.array(y) if actual is None else np.concatenate((actual, y))
-        y_hat = model(x)
+        y_hat = model(x) if not data else model(x, data[0])
 
         loss = model.model_loss(y_hat, y)
 
@@ -105,7 +105,7 @@ def main(model_name, samples=5000, dir_name=None, exclude=False):
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means = prepare_data(samples, 'RFP', dir_name, exclude)
+    X_train, y_train, X_valid, y_valid, means = prepare_data(samples, 'SFP', dir_name, exclude)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
@@ -113,7 +113,7 @@ def main(model_name, samples=5000, dir_name=None, exclude=False):
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     valid_dl = DataLoader(valid_ds, batch_size=batch_size)
 
-    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[1], 70, CVLoss).to(device)
+    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 70, CVLoss).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model)
     return model
@@ -122,7 +122,7 @@ def main(model_name, samples=5000, dir_name=None, exclude=False):
 if __name__ == '__main__':
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('IRValue', 5000, dir)
-    create_graphs(model.cache)
+    model = model if model else main('ConvNet', 50, dir)
+    # create_graphs(model.cache)
     dir = 'Zeelim_29.5.19_1730_W'
     IRMaker(dir).generate_image(model)
