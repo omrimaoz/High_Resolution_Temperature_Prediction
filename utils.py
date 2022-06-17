@@ -13,7 +13,8 @@ BATCH_SIZE = 0
 DEGREE_ERROR = 0.5
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
-FRAME_RADIUS = 12  # radius of the frame we pass to the network, excluding the center pixel
+FRAME_RADIUS = 12
+SPLIT_FACTOR = 0.2
 
 TO_GRAPH = True
 
@@ -75,6 +76,9 @@ def evaluate_prediceted_IR(dir):
 
 
 def get_best_model(model_name):
+    if not model_name:
+        return None
+
     listdir = os.listdir(MODELS_DIR)
     acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
     score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
@@ -94,7 +98,7 @@ def get_best_model(model_name):
 
 def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v_label=None):
     for i, t in enumerate(x):
-        plt.scatter(y, x[i], c=colors[i], marker=markers[i], label=labels[i])
+        plt.scatter(x[i], y, c=colors[i], marker=markers[i], label=labels[i])
     if v_val:
         plt.axvline(x=v_val, color='orange', linestyle='--', lw=4, label='{}={}'.format(v_label, v_val))
     plt.title(title)
@@ -102,6 +106,7 @@ def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v
     plt.xlabel(xlabel)
     plt.legend(loc=0)
     plt.show()  # uncomment if you want to show graphs
+
 
 def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None):
     plt.hist(x, bins, color=color)
@@ -129,14 +134,14 @@ def create_graphs(cache):
              )
 
     '''
-    2nd graph: Actual temperature as function of diff (prediction-actual)
+    2nd graph: Function of diff (prediction-actual) as actual temperature
     '''
     train_validation = cache['train_prediction'].copy()
     train_validation[1] = train_validation[1] - train_validation[0]
     train_validation = train_validation[:, train_validation[0].argsort()]
-    to_graph(y=train_validation[0],
-             x=[train_validation[1]],
-             title='Actual temperature as function of diff (prediction-actual)',
+    to_graph(y=train_validation[1],
+             x=[train_validation[0]],
+             title='Function of diff (prediction-actual) as actual temperature',
              ylabel='Prediction - Actual',
              xlabel='Actual temperature value',
              colors=['b'],
@@ -179,3 +184,22 @@ def create_graphs(cache):
         v_val=cache['actual_mean'],
         v_label='Actual Mean'
     )
+
+    '''
+    5nd graph: Pixels error (MSE) as function of distance from mean (require the data to consider a single register image)
+    '''
+    train_validation = cache['train_prediction'].copy()
+    train_validation[0] = (train_validation[0] - train_validation[1]) ** 2
+    train_validation[1] = np.abs(cache['actual_mean'] - train_validation[1])
+    # train_validation[1] = train_validation[1] -
+    train_validation = train_validation[:, train_validation[0].argsort()]
+
+    to_graph(y=train_validation[0],
+             x=[train_validation[1]],
+             title='Pixels error (MSE) as function of distance from mean',
+             ylabel='Pixels error (MSE)',
+             xlabel='Pixels distance from mean',
+             colors=['b'],
+             markers=['.'],
+             labels=['Pixels error (MSE)']
+             )
