@@ -28,8 +28,8 @@ def train_model(model):
         sum_loss = 0.0
         total = 0
         for batch, pack in enumerate(model.train_loader):
-            x, y = model.unpack(pack)
-            y_pred = model(x)
+            x, y, *data = model.unpack(pack)
+            y_pred = model(x, data[0]) if data else model(x)
             y_hat = model.predict(y_pred)
 
             loss = model.criterion(y_pred, y)
@@ -75,9 +75,9 @@ def validate_model(model):
     pred = None
     actual = None
     for x, y in model.valid_loader:
-        x, y = model.unpack((x, y))
+        x, y, *data = model.unpack((x, y))
         actual = np.array(y) if actual is None else np.concatenate((actual, y))
-        y_hat = model(x)
+        y_hat = model(x) if not data else model(x, data[0])
 
         loss = model.criterion(y_hat, y)
 
@@ -94,12 +94,13 @@ def validate_model(model):
     return sum_loss / total, accuracy, MAE, MSE
 
 
-def main(model_name, dir_name=None):
+def main(model_name, sample_method, dir_name=None):
     # Create json station data for each folder
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X, y = prepare_data(5000, 'RPP', dir_name)
+    X, y = prepare_data(10000, sample_method, dir_name)
+    # X, y = prepare_data(50, 'SPP', dir_name)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X.shape[0] // 10
     X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2)
@@ -108,7 +109,7 @@ def main(model_name, dir_name=None):
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     valid_dl = DataLoader(valid_ds, batch_size=batch_size)
 
-    model = ModelFactory.create_model(model_name, train_dl, valid_dl, X.shape[1])
+    model = ModelFactory.create_model(model_name, train_dl, valid_dl, X.shape[1], 6)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model)
     return model
@@ -116,7 +117,8 @@ def main(model_name, dir_name=None):
 
 if __name__ == '__main__':
     dir = 'Zeelim_30.5.19_0630_E'
-    model = get_best_model('IRClass')
-    model = model if model else main('IRClass')
-    create_graphs(model.cache)
+    # model = get_best_model('ConvNet')
+    model = None
+    model = model if model else main('ConvNet', 'SFP')
+    # create_graphs(model.cache)
     IRMaker(dir).generate_image(model)

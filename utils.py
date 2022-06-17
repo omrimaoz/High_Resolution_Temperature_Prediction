@@ -10,10 +10,10 @@ from matplotlib import pyplot as plt
 
 ROUND_CONST = 3
 BATCH_SIZE = 0
-DEGREE_ERROR = 2
+DEGREE_ERROR = 0.5
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
-FRAME_WINDOW = 25
+FRAME_RADIUS = 12  # radius of the frame we pass to the network, excluding the center pixel
 
 TO_GRAPH = True
 

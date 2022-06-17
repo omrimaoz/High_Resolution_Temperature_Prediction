@@ -75,14 +75,14 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
     return X[:k], y[:k]
 
 
-def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X = np.zeros(shape=(num_samples * len(listdir) + (FRAME_WINDOW ** 2) - 1, inputs), dtype=np.float)
+def frame_to_pixel_sampling(num_samples, inputs, listdir, method):
+    X = np.zeros(shape=(num_samples * len(listdir), inputs + ((2 * FRAME_RADIUS + 1) ** 2 - 1) * 6), dtype=np.float)  # TODO replace 6 with param
     y = np.zeros(shape=(num_samples * len(listdir)), dtype=np.float)
     k = 0
 
     for dir in listdir:
         IRObj = IRMaker(dir, train=True)
-        dir_data = IRObj.get_data_dict()
+        dir_data = [np.pad(image, FRAME_RADIUS) for image in IRObj.get_data_dict()]
         station_data = IRObj.station_data
         label_data = IRObj.IR
 
@@ -91,15 +91,14 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
         for i, j in zip(row_indices, col_indices):
             data_samples = list()
             for image in dir_data:
-                flat_image = image[i-(FRAME_WINDOW // 2):i+(FRAME_WINDOW // 2),
-                             j-(FRAME_WINDOW // 2):j+(FRAME_WINDOW // 2)].flatten()
-                data_samples += flat_image
+                flat_image = get_frame(image, i + FRAME_RADIUS, j + FRAME_RADIUS, FRAME_RADIUS).flatten()
+                data_samples.extend(flat_image)
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X[k] = np.array(data_samples)
             y[k] = label_data[i][j]
             k += 1
-            if dir_data[0].shape[0] != 1000:
+            if dir_data[0].shape[0] != 1000 and dir_data[0].shape[0] != 1000 + FRAME_RADIUS*2:
                 print(1)
 
     return X, y
@@ -123,8 +122,12 @@ def prepare_data(num_samples, sampling_method, dir):
     if sampling_method == 'RPP':
         X, y = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
     if sampling_method == 'SFP':
-        pass
+        X, y = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Simple')
     if sampling_method == 'RFP':
-        pass
+        X, y = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
 
     return X, y
+
+
+def get_frame(image, i, j, radius):
+    return image[i - radius: i + radius + 1, j - radius: j + radius + 1]
