@@ -98,35 +98,43 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
 
 
 def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X = np.zeros(shape=(num_samples * len(listdir) + (FRAME_WINDOW ** 2) - 1, inputs), dtype=np.float)
-    y = np.zeros(shape=(num_samples * len(listdir)), dtype=np.float)
-    k = 0
+    X_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR)), len(IRMaker.data_maps), ((2 * FRAME_RADIUS + 1) ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    y_train = np.zeros(shape=(int(num_samples * len(listdir) * (1-SPLIT_FACTOR))), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR)), len(IRMaker.data_maps), ((2 * FRAME_RADIUS + 1) ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    y_valid = np.zeros(shape=(int(num_samples * len(listdir) * (SPLIT_FACTOR))), dtype=np.float)
+    m, n = 0, 0
     means = list()
 
     for dir in listdir:
         IRObj = IRMaker(dir, train=True)
-        dir_data = IRObj.get_data_dict()
+        dir_data = [np.pad(image, FRAME_RADIUS) for image in IRObj.get_data_dict()]
         station_data = IRObj.station_data
         label_data = IRObj.IR
         means.append(np.average(IRObj.IR))
 
-        row_indices, col_indices = random_sampling_by_method(method, IRObj.IR, num_samples)
+        train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, num_samples)
 
-        for i, j in zip(row_indices, col_indices):
+        for i, j in zip(train_row, train_col):
             data_samples = list()
-            for image in dir_data:
-                flat_image = image[i-(FRAME_WINDOW // 2):i+(FRAME_WINDOW // 2),
-                             j-(FRAME_WINDOW // 2):j+(FRAME_WINDOW // 2)].flatten()
-                data_samples += flat_image
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
-            X[k] = np.array(data_samples)
-            y[k] = label_data[i][j]
-            k += 1
-            if dir_data[0].shape[0] != 1000:
-                print(1)
+            for k, image in enumerate(dir_data):
+                frame = image[i: i + (2 * FRAME_RADIUS + 1), j: j + (2 * FRAME_RADIUS + 1)].flatten()
+                X_train[m][k] = np.concatenate((frame, np.array(data_samples)))
+            y_train[m] = label_data[i][j]
+            m += 1
 
-    return X, y, means
+        for i, j in zip(valid_row, valid_col):
+            data_samples = list()
+            for key in IRObj.STATION_PARAMS_TO_USE:
+                data_samples.append(station_data[key])
+            for k, image in enumerate(dir_data):
+                frame = image[i: i + (2 * FRAME_RADIUS + 1), j: j + (2 * FRAME_RADIUS + 1)].flatten()
+                X_train[n][k] = np.concatenate((frame, np.array(data_samples)))
+            y_train[n] = label_data[i][j]
+            n += 1
+
+    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
 
 
 def prepare_data(num_samples, sampling_method, dir, exclude):
@@ -155,6 +163,7 @@ def prepare_data(num_samples, sampling_method, dir, exclude):
     if sampling_method == 'SFP':
         pass
     if sampling_method == 'RFP':
-        pass
+        inputs = len(data_map.keys())
+        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
 
     return X_train, y_train, X_valid, y_valid, means

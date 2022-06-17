@@ -106,7 +106,7 @@ def main(model_name, samples=5000, dir_name=None, exclude=False):
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means = prepare_data(samples, 'RPP', dir_name, exclude)
+    X_train, y_train, X_valid, y_valid, means = prepare_data(samples, 'RFP', dir_name, exclude)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
