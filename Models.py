@@ -154,9 +154,9 @@ class ConvNet(TemperatureModel):
         x = self.fc3(x)
         return x
 
-    def unpack(self, pack):
-        X, y, data = pack[0].float()[:, :FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT],\
-                     torch.round(pack[1]).long(), pack[0].float()[:, FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:]
+    def unpack(self, pack, device):
+        X, y, data = pack[0].float()[:, :FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+                     torch.round(pack[1]).long().to(device), pack[0].float()[:, FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
         X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, FRAME_WINDOW, FRAME_WINDOW))  # TODO replace with params
         return X, y, data
 
