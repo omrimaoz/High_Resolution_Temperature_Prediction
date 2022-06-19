@@ -65,7 +65,9 @@ def train_model(model):
                                          time=datetime.now().strftime('%d%m%y'))
     if MAE:
         path += '_mae{mae}'.format(mae=np.round(MAE, ROUND_CONST))
-    torch.save(model, path + MODEL_EXTENSION)
+    model.cpu()
+    torch.save(model.state_dict(), path + MODEL_EXTENSION)
+    model.to(device)
     if model.cache['train_prediction'] is not None:
         model.cache['train_prediction'] = (model.cache['train_prediction'] / IR_TEMP_FACTOR).tolist()
         with open(path + JSON_EXTENSION, 'w') as f:
@@ -100,6 +102,29 @@ def validate_model(model):
 
     return sum_loss / total, accuracy, MAE, MSE
 
+def get_best_model(model_name):
+    if not model_name:
+        return None
+
+    listdir = os.listdir(MODELS_DIR)
+    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
+    score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
+    models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
+    scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
+
+    if not models:
+        return None
+
+    idx = np.argmin(np.array(scores, dtype=float))
+    model = ModelFactory.create_model(model_name, None, None, None, 3754, 70).to(device)
+    model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
+    model.eval()
+    # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
+    with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
+        model.cache = json.loads(f.read())
+        model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
+    return model
+
 
 def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False):
     # Create json station data for each folder
@@ -123,7 +148,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
 if __name__ == '__main__':
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('ConvNet', 'RFP', 2000, dir, True)
+    model = model if model else main('ConvNet', 'SFP', 500, dir, False)
     # create_graphs(model.cache)
     dir = 'Zeelim_30.5.19_0630_E'
     IRMaker(dir).generate_image(model)

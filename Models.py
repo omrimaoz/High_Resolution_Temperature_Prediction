@@ -127,7 +127,7 @@ class IRClass(TemperatureModel):
 
 class ConvNet(TemperatureModel):
     name = 'ConvNet'
-    epochs = 100
+    epochs = 30
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):
@@ -136,7 +136,7 @@ class ConvNet(TemperatureModel):
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
         self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=5)
         # self.bn2 = nn.BatchNorm2d(64)
-        self.fc1 = nn.Linear(64 * 9 + 4, 120)  # TODO why 9?
+        self.fc1 = nn.Linear(64 * 9 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, outputs_dim * IR_TEMP_FACTOR)
 

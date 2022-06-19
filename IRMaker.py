@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 
 from Dataset import Dataset
 from utils import *
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class IRMaker(object):
@@ -94,6 +95,8 @@ class IRMaker(object):
         # for i in range(self.Height.shape[0]):
         #     for j in range(self.Height.shape[1]):
         for i in range(self.Height.shape[0]):
+            if i%10 == 0:
+                print(i)
             for j in range(self.Height.shape[1]):
 
                 data_samples = list()
@@ -102,7 +105,7 @@ class IRMaker(object):
                     data_samples.extend(flat_image)
                 for key in self.STATION_PARAMS_TO_USE:
                     data_samples.append(station_data[key])
-                X, data = torch.Tensor(data_samples)[:3750], torch.Tensor(data_samples)[3750:]
+                X, data = torch.Tensor(data_samples)[:3750].to(device), torch.Tensor(data_samples)[3750:].to(device)
                 data = data.reshape(1, data.size()[0])
                 X = X.reshape((1, 6, 25, 25))  # TODO replace with params
                 y_hat = model(X, data)

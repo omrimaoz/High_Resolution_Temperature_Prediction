@@ -66,8 +66,10 @@ def metrics(predictions, actuals):
 
 
 def evaluate_prediceted_IR(dir):
+    with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
+        station_data = json.loads(f.read())
     RealIR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
-    PredictedIR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir))
+    PredictedIR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir)) + station_data["IR_temp"]
 
     Accuracy, MAE, MSE = metrics(PredictedIR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR)
     print('IRMaker Result: Accuracy: {Accuracy}, MAE: {MAE}, MSE: {MSE}'.format(
@@ -76,25 +78,6 @@ def evaluate_prediceted_IR(dir):
     ))
 
 
-def get_best_model(model_name):
-    if not model_name:
-        return None
-
-    listdir = os.listdir(MODELS_DIR)
-    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
-    score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
-    models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
-    scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
-
-    if not models:
-        return None
-
-    idx = np.argmin(np.array(scores, dtype=float))
-    model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
-    with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
-        model.cache = json.loads(f.read())
-        model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
-    return model
 
 
 def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v_label=None):
