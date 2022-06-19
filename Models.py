@@ -208,7 +208,7 @@ class ResNet18(PretrainedModel):
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet18(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.fc_inputs += 512
+        self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
             nn.ReLU(inplace=True),
