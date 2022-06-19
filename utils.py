@@ -66,10 +66,8 @@ def metrics(predictions, actuals):
 
 
 def evaluate_prediceted_IR(dir):
-    with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
-        station_data = json.loads(f.read())
     RealIR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
-    PredictedIR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir)) + station_data["IR_temp"]
+    PredictedIR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir))
 
     Accuracy, MAE, MSE = metrics(PredictedIR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR)
     print('IRMaker Result: Accuracy: {Accuracy}, MAE: {MAE}, MSE: {MSE}'.format(
