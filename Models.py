@@ -3,6 +3,7 @@ from collections import OrderedDict
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torchvision import models
 
 from Loss_Functions import *
 from utils import *
@@ -25,7 +26,7 @@ class TemperatureModel(torch.nn.Module):
         self.valid_loader = valid_loader
         self.means = means
         self.inputs_dim = inputs_dim
-        self.outputs_dim = outputs_dim
+        self.outputs_dim = outputs_dim * IR_TEMP_FACTOR if outputs_dim > 1 else outputs_dim
         self.criterion = criterion
 
     def find_close_means(self, target):
@@ -48,6 +49,12 @@ class TemperatureModel(torch.nn.Module):
                 output = output.view(-1)
                 return self.criterion(output, target, const)
         return self.criterion(output, target)
+
+    def predict(self, y_hat):
+        if self.outputs_dim > 1:
+            return torch.max(y_hat, 1)[1]
+        else:
+            return y_hat.detach().view(-1)
 
 
 class IRValue(TemperatureModel):
@@ -79,9 +86,6 @@ class IRValue(TemperatureModel):
     def unpack(self, pack, device):
         return pack[0].float().to(device), pack[1].float().to(device)
 
-    def predict(self, y_hat):
-        return y_hat.detach().view(-1)
-
     def lambda_scheduler(self, epoch):
         if epoch < 15:
             return 0.1
@@ -99,7 +103,7 @@ class IRClass(TemperatureModel):
         super(IRClass, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
         self.linear1 = nn.Linear(inputs_dim, 256)
         self.linear2 = nn.Linear(256, 256)
-        self.fc = nn.Linear(256, outputs_dim * IR_TEMP_FACTOR)
+        self.fc = nn.Linear(256, self.outputs_dim)
         self.dropout = nn.Dropout(0.1)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
@@ -114,9 +118,6 @@ class IRClass(TemperatureModel):
     def unpack(self, pack, device):
         return pack[0].float().to(device), torch.round(pack[1]).long().to(device)
 
-    def predict(self, y_hat):
-        return torch.max(y_hat, 1)[1]
-
     def lambda_scheduler(self, epoch):
         if epoch < 25:
             return 0.01
@@ -125,20 +126,32 @@ class IRClass(TemperatureModel):
         return 0.0005
 
 
-class ConvNet(TemperatureModel):
+class FTP(TemperatureModel):
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
+        super(FTP, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
+
+    def unpack(self, pack, device):
+        X, y, data = pack[0].float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+                     torch.round(pack[1]).long().to(device), pack[0].float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+        X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))  # TODO replace with params
+        return X, y, data
+
+
+class ConvNet(FTP):
     name = 'ConvNet'
     epochs = 30
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim=70 * IR_TEMP_FACTOR, criterion=nn.CrossEntropyLoss()):
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
         self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=5)
+        torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
         self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=5)
         # self.bn2 = nn.BatchNorm2d(64)
         self.fc1 = nn.Linear(64 * 9 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, outputs_dim * IR_TEMP_FACTOR)
+        self.fc3 = nn.Linear(84, self.outputs_dim)
 
     def forward(self, x, data=torch.Tensor()):
         # x = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), 2)
@@ -154,21 +167,125 @@ class ConvNet(TemperatureModel):
         x = self.fc3(x)
         return x
 
-    def unpack(self, pack, device):
-        X, y, data = pack[0].float()[:, :FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
-                     torch.round(pack[1]).long().to(device), pack[0].float()[:, FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
-        X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, FRAME_WINDOW, FRAME_WINDOW))  # TODO replace with params
-        return X, y, data
-
-    def predict(self, y_hat):
-        return torch.max(y_hat, 1)[1]
-
     def lambda_scheduler(self, epoch):
         if epoch < 80:
             return 0.01
         if epoch < 150:
             return 0.001
         return 0.0005
+
+
+class PretrainedModel(FTP):
+    epochs = 100
+    lr = 0.1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, pretrained_model):
+        super(PretrainedModel, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
+        self.pretrained_model = pretrained_model
+        # self.pretrained_model.fc = nn.Identity()
+        self.fc_inputs = IRMaker.STATION_PARAMS_COUNT
+        self.fc_with_data = None
+
+    def forward(self, x, data=torch.Tensor()):
+        x = self.pretrained_model(x)
+        x = torch.cat((x, data), dim=1)
+        x = self.fc_with_data(x)
+        return x
+
+    def lambda_scheduler(self, epoch):
+        if epoch < 30:
+            return 0.1
+        if epoch < 60:
+            return 0.01
+        return 0.0005
+
+
+class ResNet18(PretrainedModel):
+    name = 'ResNet18'
+    epochs = 100
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+        super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet18(pretrained=False))
+        self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.fc_inputs += 512
+        self.fc_with_data = nn.Sequential(
+            nn.Linear(self.fc_inputs, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, self.outputs_dim))
+
+
+class ResNet50(PretrainedModel):
+    name = 'ResNet50'
+    epochs = 100
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+        super(ResNet50, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet50(pretrained=False))
+        self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.fc_inputs += 2048
+        self.fc_with_data = nn.Sequential(
+            nn.Linear(self.fc_inputs, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, self.outputs_dim))
+
+
+class InceptionV3(PretrainedModel):
+    name = 'InceptionV3'
+    epochs = 100
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+        super(InceptionV3, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.inception_v3(pretrained=False))
+        self.pretrained_model.Conv2d_1a_3x3.conv = nn.Conv2d(6, 32, kernel_size=3, stride=2, bias=False)
+        self.fc_inputs += 1000
+        self.fc_with_data = nn.Sequential(
+            nn.Linear(self.fc_inputs, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, self.outputs_dim))
+        self.pretrained_model.aux_logits = False
+
+    # def unpack(self, pack, device):
+    #     X, y, data = pack[0].float()[:, :299**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+    #                  torch.round(pack[1]).long().to(device), pack[0].float()[:, 299**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+    #     X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, 299, 299))  # TODO replace with params
+    #     return X, y, data
+
+
+class VGG19(PretrainedModel):
+    name = 'VGG19'
+    epochs = 100
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+        super(VGG19, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.vgg19(pretrained=False))
+        self.pretrained_model.features[0] = nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fc_inputs += 1000
+        self.fc_with_data = nn.Sequential(
+            nn.Linear(self.fc_inputs, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, self.outputs_dim))
+
+    # def unpack(self, pack, device):
+    #     X, y, data = pack[0].float()[:, :224**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+    #                  torch.round(pack[1]).long().to(device), pack[0].float()[:, 224**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+    #     X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, 224, 224))  # TODO replace with params
+    #     return X, y, data
+
+
+class ResNetXt101(PretrainedModel):
+    name = 'ResNetXt101'
+    epochs = 100
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+        super(ResNetXt101, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet101(pretrained=False))
+        self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.fc_inputs += 1000
+        self.fc_with_data = nn.Sequential(
+            nn.Linear(self.fc_inputs, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, self.outputs_dim))
 
 # class UNet(nn.Module):
 #

@@ -49,8 +49,8 @@ def random_sampling_by_method(method, image, num_samples):
                 forward_sample = 0
             indices = random.sample(levels[i], current_sample - forward_sample)
             random.shuffle(indices)
-            train_indices += indices[:int(len(indices) * (1 - SPLIT_FACTOR))]
-            valid_indices += indices[int(len(indices) * (1 - SPLIT_FACTOR)):]
+            train_indices += indices[:int(np.round(len(indices) * (1 - SPLIT_FACTOR)))]
+            valid_indices += indices[int(np.round(len(indices) * (1 - SPLIT_FACTOR))):]
 
         train_row, train_col = zip(*train_indices)
         valid_row, valid_col = zip(*valid_indices)
@@ -98,16 +98,16 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
 
 
 def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    X_train = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), len(IRMaker.data_maps) * (FRAME_WINDOW ** 2) + len(IRMaker.STATION_PARAMS_TO_USE)), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     m, n = 0, 0
     means = list()
 
     for dir in listdir:
         IRObj = IRMaker(dir, train=True)
-        dir_data = [np.pad(image, FRAME_RADIUS) for image in IRObj.get_data_dict()]
+        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
         station_data = IRObj.station_data
         label_data = IRObj.IR
         means.append(np.average(IRObj.IR))
@@ -117,7 +117,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
         for i, j in zip(train_row, train_col):
             data_samples = list()
             for k, image in enumerate(dir_data):
-                frame = image[i: i + FRAME_WINDOW, j: j + FRAME_WINDOW].flatten()
+                frame = image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW].flatten()
                 data_samples.extend(frame)
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
@@ -128,7 +128,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
         for i, j in zip(valid_row, valid_col):
             data_samples = list()
             for k, image in enumerate(dir_data):
-                frame = image[i: i + FRAME_WINDOW, j: j + FRAME_WINDOW].flatten()
+                frame = image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW].flatten()
                 data_samples.extend(frame)
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
@@ -139,7 +139,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
     return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
 
 
-def prepare_data(num_samples, sampling_method, dir, exclude):
+def prepare_data(model_name, num_samples, sampling_method, dir, exclude):
     listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
     if dir:
         if exclude:
@@ -151,13 +151,17 @@ def prepare_data(num_samples, sampling_method, dir, exclude):
         if not os.path.exists('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir)):
             listdir.remove(dir)
 
+    if model_name == 'InceptionV3':
+        IRMaker.FRAME_RADIUS, IRMaker.FRAME_WINDOW = 149, 299
+    if model_name == 'VGG19':
+        IRMaker.FRAME_RADIUS, IRMaker.FRAME_WINDOW = 112, 224
     '''
     inputs to consider:
         - From data: Height (DSM), ..
         - From Station: Julian Day, Day Time, Habitat, Wind Speed, Air Temperature, Ground Temperature Humidity, Pressure, Radiation.   
     '''
 
-    inputs = len(data_map.keys()) + len(IRMaker.STATION_PARAMS_TO_USE)
+    inputs = IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
     if sampling_method == 'SPP':
         X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Simple')
     if sampling_method == 'RPP':
@@ -165,7 +169,7 @@ def prepare_data(num_samples, sampling_method, dir, exclude):
     if sampling_method == 'SFP':
         X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Simple')
     if sampling_method == 'RFP':
-        inputs = len(data_map.keys())
+        inputs = IRMaker.DATA_MAPS
         X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
 
     return X_train, y_train, X_valid, y_valid, means

@@ -131,7 +131,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means = prepare_data(samples, sampling_method, dir_name, exclude)
+    X_train, y_train, X_valid, y_valid, means = prepare_data(model_name, samples, sampling_method, dir_name, exclude)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
@@ -146,9 +146,10 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
 
 
 if __name__ == '__main__':
+    # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('ConvNet', 'SFP', 500, dir, False)
+    model = model if model else main('ConvNet', 'RFP', 1000, dir, True)
     # create_graphs(model.cache)
     dir = 'Zeelim_30.5.19_0630_E'
     IRMaker(dir).generate_image(model)
