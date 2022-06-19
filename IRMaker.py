@@ -15,8 +15,10 @@ class IRMaker(object):
     #                          "IR_temp"]
     STATION_PARAMS_TO_USE = ["julian_day", "temperature", "radiation", "IR_temp"]
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
-    data_maps = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
-    DATA_MAPS_COUNT = len(data_maps)
+    DATA_MAPS = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
+    DATA_MAPS_COUNT = len(DATA_MAPS)
+    FRAME_RADIUS = 12
+    FRAME_WINDOW = FRAME_RADIUS * 2 + 1
 
     def __init__(self, dir, train=False):
         super(IRMaker, self).__init__()
@@ -45,7 +47,7 @@ class IRMaker(object):
         else:
             predicted_IR = np.zeros_like(self.Height)
 
-            inputs = len(self.data_maps) + len(self.STATION_PARAMS_TO_USE)
+            inputs = self.DATA_MAPS_COUNT + self.STATION_PARAMS_COUNT
             image_pixels = self.Height.shape[0] * self.Height.shape[1]
             X = np.zeros(shape=(image_pixels, inputs), dtype=np.float)
             batch_size = image_pixels // 10
@@ -85,12 +87,12 @@ class IRMaker(object):
 
     def generate_image_conv(self, model):  # TODO merge with original function
         predicted_IR = np.zeros_like(self.Height)
-        inputs = len(self.data_maps) + len(self.STATION_PARAMS_TO_USE)
+        inputs = self.DATA_MAPS_COUNT + self.STATION_PARAMS_COUNT
         image_pixels = self.Height.shape[0] * self.Height.shape[1]
         batch_size = image_pixels // 10
         dir_data = self.get_data_dict()
         station_data = self.station_data
-        dir_data = [np.pad(image, FRAME_RADIUS, 'constant') for image in dir_data]
+        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS, 'constant') for image in dir_data]
         # for i in range(self.Height.shape[0]):
         #     for j in range(self.Height.shape[1]):
         for i in range(self.Height.shape[0]):
@@ -98,7 +100,7 @@ class IRMaker(object):
 
                 data_samples = list()
                 for image in dir_data:
-                    flat_image = get_frame(image, i + FRAME_RADIUS, j + FRAME_RADIUS, FRAME_RADIUS).flatten()
+                    flat_image = get_frame(image, i + IRMaker.FRAME_RADIUS, j + IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS).flatten()
                     data_samples.extend(flat_image)
                 for key in self.STATION_PARAMS_TO_USE:
                     data_samples.append(station_data[key])
