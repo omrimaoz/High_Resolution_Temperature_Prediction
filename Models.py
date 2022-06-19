@@ -202,7 +202,7 @@ class PretrainedModel(FTP):
 
 class ResNet18(PretrainedModel):
     name = 'ResNet18'
-    epochs = 100
+    epochs = 300
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
@@ -214,6 +214,15 @@ class ResNet18(PretrainedModel):
             nn.ReLU(inplace=True),
             nn.Linear(128, self.outputs_dim))
 
+    def lambda_scheduler(self, epoch):
+        if epoch < 30:
+            return 0.2
+        if epoch < 60:
+            return 0.1
+        if epoch < 200:
+            return 0.01
+        return 0.0005
+
 
 class ResNet50(PretrainedModel):
     name = 'ResNet50'
@@ -223,7 +232,7 @@ class ResNet50(PretrainedModel):
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(ResNet50, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet50(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.fc_inputs += 2048
+        self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
             nn.ReLU(inplace=True),
