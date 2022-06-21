@@ -208,6 +208,7 @@ class ResNet18(PretrainedModel):
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet18(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
@@ -226,18 +227,25 @@ class ResNet18(PretrainedModel):
 
 class ResNet50(PretrainedModel):
     name = 'ResNet50'
-    epochs = 100
+    epochs = 200
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(ResNet50, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet50(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
             nn.ReLU(inplace=True),
             nn.Linear(128, self.outputs_dim))
 
+    def lambda_scheduler(self, epoch):
+        if epoch < 20:
+            return 0.1
+        if epoch < 60:
+            return 0.01
+        return 0.001
 
 class InceptionV3(PretrainedModel):
     name = 'InceptionV3'
@@ -247,6 +255,7 @@ class InceptionV3(PretrainedModel):
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(InceptionV3, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.inception_v3(pretrained=False))
         self.pretrained_model.Conv2d_1a_3x3.conv = nn.Conv2d(6, 32, kernel_size=3, stride=2, bias=False)
+        torch.nn.init.xavier_uniform(self.pretrained_model.Conv2d_1a_3x3.conv.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
@@ -269,6 +278,7 @@ class VGG19(PretrainedModel):
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(VGG19, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.vgg19(pretrained=False))
         self.pretrained_model.features[0] = nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        torch.nn.init.xavier_uniform(self.pretrained_model.features[0].weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
@@ -284,17 +294,25 @@ class VGG19(PretrainedModel):
 
 class ResNetXt101(PretrainedModel):
     name = 'ResNetXt101'
-    epochs = 100
+    epochs = 1000
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
         super(ResNetXt101, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet101(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
             nn.ReLU(inplace=True),
             nn.Linear(128, self.outputs_dim))
+
+    def lambda_scheduler(self, epoch):
+        if epoch < 20:
+            return 0.1
+        if epoch < 200:
+            return 0.01
+        return 0.001
 
 # class UNet(nn.Module):
 #
