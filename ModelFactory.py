@@ -17,7 +17,9 @@ class ModelFactory():
                 return IRClass(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion)
             return IRClass(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss())
         if model_name == 'ConvNet':
-            return ConvNet(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss())
+            if criterion:
+                return ConvNet(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion)
+            return ConvNet(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion=nn.MSELoss())
         if model_name == 'ResNet18':
             return ResNet18(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss())
         if model_name == 'ResNet50':

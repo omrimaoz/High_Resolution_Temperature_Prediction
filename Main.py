@@ -10,7 +10,6 @@ from IRMaker import IRMaker
 from ModelFactory import ModelFactory
 from Prepare_Data import prepare_data
 from utils import *
-from sklearn.model_selection import train_test_split
 from Dataset import Dataset
 from Models import *
 
@@ -116,7 +115,8 @@ def get_best_model(model_name):
         return None
 
     idx = np.argmin(np.array(scores, dtype=float))
-    model = ModelFactory.create_model(model_name, None, None, None, 3754, 70).to(device)
+    inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
+    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, 1).to(device)
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
     # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
@@ -139,7 +139,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     valid_dl = DataLoader(valid_ds, batch_size=batch_size)
 
-    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 70).to(device)
+    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 1, CVLoss).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model)
     return model

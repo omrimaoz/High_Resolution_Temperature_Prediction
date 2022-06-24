@@ -132,14 +132,14 @@ class FTP(TemperatureModel):
 
     def unpack(self, pack, device):
         X, y, data = pack[0].float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
-                     torch.round(pack[1]).long().to(device), pack[0].float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+                     pack[1].float().to(device), pack[0].float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
         X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))  # TODO replace with params
         return X, y, data
 
 
 class ConvNet(FTP):
     name = 'ConvNet'
-    epochs = 30
+    epochs = 50
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):

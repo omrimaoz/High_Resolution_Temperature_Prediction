@@ -18,6 +18,11 @@ data_map = OrderedDict({
     'TGI': None,
 })
 
+
+def get_frame(image, i, j):
+    return image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW]
+
+
 def random_sampling_by_method(method, image, num_samples):
     if method == 'Simple':
         row_indices = np.random.choice(image.shape[0], num_samples)
@@ -116,8 +121,8 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
 
         for i, j in zip(train_row, train_col):
             data_samples = list()
-            for k, image in enumerate(dir_data):
-                frame = image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW].flatten()
+            for image in dir_data:
+                frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
@@ -128,7 +133,7 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
         for i, j in zip(valid_row, valid_col):
             data_samples = list()
             for k, image in enumerate(dir_data):
-                frame = image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW].flatten()
+                frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
