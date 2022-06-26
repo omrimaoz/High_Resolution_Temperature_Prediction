@@ -4,6 +4,7 @@ import numpy as np
 import tifffile as tiff
 from PIL import Image
 from torch.utils.data import DataLoader
+from matplotlib import cm
 
 from Dataset import Dataset
 from utils import *
@@ -38,8 +39,8 @@ class IRMaker(object):
         with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
             self.station_data = json.loads(f.read())
 
-        self.RealSolar = np.average(self.RealSolar[1:-1, 1:-1]) * (self.RealSolar < 0) * 1. + \
-                                self.RealSolar * (self.RealSolar >= 0) * 1. / 1000
+        self.RealSolar = (np.average(self.RealSolar[1:-1, 1:-1]) * (self.RealSolar < 0) * 1. + \
+                                self.RealSolar * (self.RealSolar >= 0) * 1.) / 1000
 
     def generate_image(self, model):
         model.eval()
@@ -80,10 +81,10 @@ class IRMaker(object):
         predicted_IR = predicted_IR / IR_TEMP_FACTOR
         tiff.imsave('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir), predicted_IR)
         tiff.imsave('{base_dir}/{dir}/PredictedIRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
-                    self.get_grayscale(predicted_IR))
+                    self.normalize_image(predicted_IR))
         self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
         tiff.imsave('{base_dir}/{dir}/IRGrayscale.tif'.format(base_dir=BASE_DIR, dir=self.dir),
-                    self.get_grayscale(self.IR))
+                    self.normalize_image(self.IR))
         evaluate_prediceted_IR(self.dir)
 
     def generate_image_conv(self, model):  # TODO merge with original function
@@ -97,10 +98,9 @@ class IRMaker(object):
         # for i in range(self.Height.shape[0]):
         #     for j in range(self.Height.shape[1]):
         for i in range(self.Height.shape[0]):
-            if i%10 == 0:
-                print(i)
+            if i % 10 == 0:
+                print('{}/{}'.format(i, self.Height.shape[0]))
             for j in range(self.Height.shape[1]):
-
                 data_samples = list()
                 for image in dir_data:
                     flat_image = get_frame(image, i + IRMaker.FRAME_RADIUS, j + IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS).flatten()
@@ -114,14 +114,54 @@ class IRMaker(object):
                 predicted_IR[i][j] = model.predict(y_hat)
         return predicted_IR
 
+    def generate_error_images(self):
+        cmap_range = 5
+        cmap_mask = (np.arange(1, 257) * (np.arange(1, 257) > 128))
+        cmap_mask = (cmap_mask % (128 // cmap_range - 1) == 0) & (cmap_mask != 0)
+        cmap_mask[255] = 1 if np.sum(cmap_mask) < cmap_range else 0
+
+        cmaps = [(cm.Blues(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
+                 (cm.Reds(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
+                 np.array([[247, 225, 75]], dtype=np.uint8),
+                 (cm.Oranges(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
+                 (cm.Purples(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
+                 (cm.Greens(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8)]
+        names = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
+
+        color_images = zip(self.get_data_dict(), cmaps, names)
+        predicted_IR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
+        IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
+        norm_predicted_IR = IRMaker.normalize_image(np.repeat(np.expand_dims(predicted_IR, 2), 3, 2))
+
+        error_image = np.abs(predicted_IR - IR) >= 2
+        error_image = np.repeat(np.expand_dims(error_image, 2), 3, 2)
+        for image, cmap, name in color_images:
+            norm_image = IRMaker.normalize_image(image)
+            min = np.min(norm_image)
+            max = np.max(norm_image)
+            rgb_image = np.repeat(np.expand_dims(norm_image, 2), 3, 2)
+            color_image = np.zeros_like(rgb_image, dtype=np.uint8)
+            for i in range(cmap.shape[0]):
+                low_level = min + ((max - min) / cmap.shape[0]) * i
+                high_level = min + ((max - min) / cmap.shape[0]) * (i + 1)
+                if i == 0:
+                    color_image = color_image + ((low_level <= rgb_image) & (rgb_image <= high_level)) * cmap[i]
+                else:
+                    color_image = color_image + ((low_level < rgb_image) & (rgb_image <= high_level)) * cmap[i]
+
+            color_image = error_image * color_image + (error_image == 0) * rgb_image
+            color_predicted_IR = error_image * color_image + (error_image == 0) * norm_predicted_IR
+            tiff.imsave('{base_dir}/{dir}/Error_{name}.tif'.format(base_dir=BASE_DIR, dir=self.dir, name=name), color_image)
+            tiff.imsave('{base_dir}/{dir}/Error_{name}_on_PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir, name=name), color_predicted_IR)
+
     def get_data_dict(self):
         return [self.Height, self.RealSolar, self.Shade, self.SkyView, self.SLP, self.TGI]
 
     @staticmethod
-    def get_grayscale(image):
+    def normalize_image(image):
         image = image - np.min(image)
         image = (image / np.max(image)) * 255
-        return image.astype(np.int8)
+        return image.astype(np.uint8)
 
 
 # TODO temp

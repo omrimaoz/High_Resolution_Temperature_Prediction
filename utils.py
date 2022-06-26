@@ -75,8 +75,6 @@ def evaluate_prediceted_IR(dir):
     ))
 
 
-
-
 def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v_label=None):
     for i, t in enumerate(x):
         plt.scatter(x[i], y, c=colors[i], marker=markers[i], label=labels[i])

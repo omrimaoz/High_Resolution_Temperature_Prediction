@@ -152,4 +152,6 @@ if __name__ == '__main__':
     model = model if model else main('ConvNet', 'RFP', 1000, dir, True)
     # create_graphs(model.cache)
     dir = 'Zeelim_30.5.19_0630_E'
-    IRMaker(dir).generate_image(model)
+    IRObj = IRMaker(dir)
+    # IRObj.generate_image(model)
+    IRObj.generate_error_images()

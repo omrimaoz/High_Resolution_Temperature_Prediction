@@ -144,12 +144,14 @@ class ConvNet(FTP):
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
-        self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=5)
+        self.kernel_size = 5
+        self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
+        self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=self.kernel_size)
         torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
-        self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=5)
+        self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=self.kernel_size)
         # self.bn2 = nn.BatchNorm2d(64)
-        self.fc1 = nn.Linear(64 * 9 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
+        self.fc1 = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, self.outputs_dim)
 
