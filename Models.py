@@ -29,19 +29,19 @@ class TemperatureModel(torch.nn.Module):
         self.outputs_dim = outputs_dim * IR_TEMP_FACTOR if outputs_dim > 1 else outputs_dim
         self.criterion = criterion
 
-    def find_close_means(self, target):
-        matrix = torch.tile(torch.tensor(self.means), dims=(target.shape[0], 1))
-        close_means = torch.abs(matrix.T - target).T
-        close_means_indices = torch.argmin(close_means, dim=1)
-        mask = torch.zeros_like(matrix)
+    def find_close_means(self, target, device):
+        matrix = torch.tile(torch.tensor(self.means), dims=(target.shape[0], 1)).to(device)
+        close_means = (torch.abs(matrix.T - target).T).to(device)
+        close_means_indices = torch.argmin(close_means, dim=1).to(device)
+        mask = torch.zeros_like(matrix).to(device)
         for i, idx in enumerate(close_means_indices):
             mask[i][idx] = 1
         return matrix * mask
 
-    def model_loss(self, output, target):
+    def model_loss(self, output, target, device):
         if isinstance(self.criterion, types.FunctionType):
             if self.criterion.__name__ == 'WMSELoss':
-                means = self.find_close_means(target)
+                means = self.find_close_means(target, device)
                 output = output.view(-1)
                 return self.criterion(output, target, means)
             elif self.criterion.__name__ == 'CVLoss':
@@ -139,7 +139,7 @@ class FTP(TemperatureModel):
 
 class ConvNet(FTP):
     name = 'ConvNet'
-    epochs = 50
+    epochs = 5000
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
@@ -151,7 +151,7 @@ class ConvNet(FTP):
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
         self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=self.kernel_size)
         # self.bn2 = nn.BatchNorm2d(64)
-        self.fc1 = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
+        self.fc1 = nn.Linear(64 * self.conv_output ** 2, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, self.outputs_dim)
 
@@ -162,19 +162,21 @@ class ConvNet(FTP):
         x = F.max_pool2d(F.relu(self.conv2(x)), 2)
 
         x = torch.flatten(x, 1)
-        x2 = data
-        x = torch.cat((x, x2), dim=1)
+        # x2 = data
+        # x = torch.cat((x, x2), dim=1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
     def lambda_scheduler(self, epoch):
-        if epoch < 80:
-            return 0.01
-        if epoch < 150:
-            return 0.001
-        return 0.0005
+        # if epoch < 10:
+        #     return 0.1
+        # if epoch < 80:
+        #     return 0.01
+        # if epoch < 150:
+        #     return 0.001
+        return 0.00001
 
 
 class PretrainedModel(FTP):

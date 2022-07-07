@@ -14,13 +14,14 @@ from Dataset import Dataset
 from Models import *
 
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device('mps')
 print('device: ' + str(device))
 
 
 def train_model(model):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=model.lr)
+    optimizer = torch.optim.SGD(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
 
     MAE = None
@@ -35,7 +36,7 @@ def train_model(model):
             y_pred = model(x, data[0]) if data else model(x)
             y_hat = model.predict(y_pred)
 
-            loss = model.model_loss(y_pred, y)
+            loss = model.model_loss(y_pred, y, device)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -86,7 +87,7 @@ def validate_model(model):
         actual = np.array(y_cpu) if actual is None else np.concatenate((actual, y_cpu))
         y_hat = model(x) if not data else model(x, data[0])
 
-        loss = model.model_loss(y_hat, y)
+        loss = model.model_loss(y_hat, y, device)
 
         y_hat = model.predict(y_hat)
         y_hat_cpu = y_hat.cpu()
@@ -139,7 +140,7 @@ def main(model_name, sampling_method, samples=5000, dir_name=None, exclude=False
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     valid_dl = DataLoader(valid_ds, batch_size=batch_size)
 
-    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 1, CVLoss).to(device)
+    model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 1).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model)
     return model
@@ -149,7 +150,7 @@ if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
     dir = 'Zeelim_30.5.19_0630_E'
     model = get_best_model('')
-    model = model if model else main('ConvNet', 'RFP', 1000, dir, True)
+    model = model if model else main('ConvNet', 'RFP', 100000, dir, False)
     # create_graphs(model.cache)
     dir = 'Zeelim_30.5.19_0630_E'
     IRObj = IRMaker(dir)

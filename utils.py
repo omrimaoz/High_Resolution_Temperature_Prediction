@@ -9,9 +9,9 @@ import torch
 from matplotlib import pyplot as plt
 
 ROUND_CONST = 3
-BATCH_SIZE = 0
+BATCH_SIZE = 50
 DEGREE_ERROR = 0.5
-IR_TEMP_FACTOR = 3
+IR_TEMP_FACTOR = 1
 IR_TEMP_DIFF = 0.2
 SPLIT_FACTOR = 0.2
 SIMILARITY_THRESHOLD = 0.3
