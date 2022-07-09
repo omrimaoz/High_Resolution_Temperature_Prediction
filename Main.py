@@ -100,7 +100,7 @@ def validate_model(model):
         y_hat_cpu = y_hat.cpu()
         pred = np.array(y_hat_cpu) if pred is None else np.concatenate((pred, y_hat_cpu))
         total += y.shape[0]
-        sum_loss += loss.item() * y.shape[0] * 210 ** 2
+        sum_loss += loss.item() * y.shape[0]
 
     accuracy, MAE, MSE = metrics(pred, actual)
     model.cache['accuracy'].append(accuracy)
@@ -109,7 +109,8 @@ def validate_model(model):
 
     return sum_loss / total, accuracy, MAE, MSE
 
-def get_best_model(model_name):
+
+def get_best_model(model_name, criterion):
     if not model_name:
         return None
 
@@ -151,7 +152,6 @@ def main(model_name, model, criterion, sampling_method, samples=5000, dir_name=N
         model.train_loader = train_dl
         model.valid_loader = valid_dl
         model.means = means
-        model.criterion = criterion
     else:
         model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 1, criterion).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     to_train = True
     criterion = WMSELoss
     dir = 'Zeelim_7.11.19_1550_W'
-    model = get_best_model('ConvNet')
+    model = get_best_model('ConvNet', criterion)
     model = main('ConvNet', model, criterion, 'RFP', 100000, dir, False) if to_train else model
     # create_graphs(model.cache)
     dir = 'Zeelim_7.11.19_1550_W'
