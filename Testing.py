@@ -40,12 +40,12 @@ def random_similar_sampling_by_method(method, image, metric):
     if method == 'Relative':
         low = np.min(image)
         high = np.max(image)
-        num_level_sample = int((high - low) / IR_TEMP_DIFF)
+        num_level_sample = int((high - low) / (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))
 
-        levels = [list() for _ in range(int((high - low) // IR_TEMP_DIFF) + 1)]
+        levels = [list() for _ in range(num_level_sample + 1)]
         for i in range(image.shape[0]):
             for j in range(image.shape[0]):
-                levels[int((image[i][j] - low) // IR_TEMP_DIFF)].append((i, j))
+                levels[int((image[i][j] - low) // (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))].append((i, j))
 
         test_indices = list()
         pad_image = np.pad(image, IRMaker.FRAME_RADIUS)
@@ -86,7 +86,7 @@ def frame_to_pixel_similarities(dir, method, metric):
 
     low = np.min(label_data)
     high = np.max(label_data)
-    num_samples = 2 * int((high - low) / IR_TEMP_DIFF)
+    num_samples = 2 * int((high - low) / (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))
     X = np.zeros(shape=(int(num_samples) * 2, IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
     y = np.zeros(shape=(int(num_samples)) * 2, dtype=float)
     k = 0
@@ -130,13 +130,23 @@ def update_model_for_testing(model, dir):
 
 if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
-    dir = 'Zeelim_30.5.19_0630_E'
+    dir = 'Zeelim_7.11.19_1550_W'
     model_name = 'ConvNet'
-    model = get_best_model(model_name)
-    if not model:
-        print("There's no save model. Create and train model first through Main.py")
-        exit(0)
-    update_model_for_testing(model, dir)
-    results = test_model(model)
-    for pair in results:
-        print(pair)
+    X, y = find_similar_frames('ConvNet', dir)
+    count = 0
+    for i in range(X.shape[0]):
+        for j in range(X.shape[0]):
+            X_diff = np.average(np.abs(X[i] - X[j]))
+            y_diff = np.abs(y[i] - y[j]) * 210
+            if (X_diff > 0.5 and y_diff < 0.2) or (X_diff < 0.05 and y_diff > 1):
+                count += 1
+    print('Sampled Error is: {}'.format(np.round(count / X.shape[0] ** 2, 4)))
+    print(1)
+    # model = get_best_model(model_name)
+    # if not model:
+    #     print("There's no save model. Create and train model first through Main.py")
+    #     exit(0)
+    # update_model_for_testing(model, dir)
+    # results = test_model(model)
+    # for pair in results:
+    #     print(pair)

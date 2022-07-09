@@ -29,8 +29,8 @@ class TemperatureModel(torch.nn.Module):
         self.outputs_dim = outputs_dim * IR_TEMP_FACTOR if outputs_dim > 1 else outputs_dim
         self.criterion = criterion
 
-    def find_close_means(self, target):
-        matrix = torch.tile(torch.tensor(self.means), dims=(target.shape[0], 1))
+    def find_close_means(self, target, device):
+        matrix = torch.tile(torch.tensor(self.means), dims=(target.shape[0], 1)).to(device)
         close_means = torch.abs(matrix.T - target).T
         close_means_indices = torch.argmin(close_means, dim=1)
         mask = torch.zeros_like(matrix)
@@ -38,16 +38,16 @@ class TemperatureModel(torch.nn.Module):
             mask[i][idx] = 1
         return matrix * mask
 
-    def model_loss(self, output, target):
+    def model_loss(self, output, target, device):
         if isinstance(self.criterion, types.FunctionType):
             if self.criterion.__name__ == 'WMSELoss':
-                means = self.find_close_means(target)
+                means = self.find_close_means(target, device)
                 output = output.view(-1)
-                return self.criterion(output, target, means)
+                return self.criterion(output, target, means, device)
             elif self.criterion.__name__ == 'CVLoss':
                 const = 100
                 output = output.view(-1)
-                return self.criterion(output, target, const)
+                return self.criterion(output, target, const, device)
         return self.criterion(output, target)
 
     def predict(self, y_hat):
@@ -139,12 +139,12 @@ class FTP(TemperatureModel):
 
 class ConvNet(FTP):
     name = 'ConvNet'
-    epochs = 50
+    epochs = 2000
     lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
-        self.kernel_size = 5
+        self.kernel_size = 2
         self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
         self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=self.kernel_size)
         torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
@@ -170,11 +170,13 @@ class ConvNet(FTP):
         return x
 
     def lambda_scheduler(self, epoch):
-        if epoch < 80:
-            return 0.01
-        if epoch < 150:
-            return 0.001
-        return 0.0005
+        # if epoch < 150:
+        #     return 0.01
+        # if epoch < 350:
+        #     return 0.001
+        # return 0.0005
+
+        return 0.01
 
 
 class PretrainedModel(FTP):

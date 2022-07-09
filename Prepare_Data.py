@@ -36,14 +36,15 @@ def random_sampling_by_method(method, image, num_samples):
     if method == 'Relative':
         low = np.min(image)
         high = np.max(image)
-        num_level_sample = int(num_samples / ((high - low) / IR_TEMP_DIFF))
+        num_levels = int((high - low) / (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))
+        num_level_sample = num_samples // num_levels
 
         train_indices = list()
         valid_indices = list()
-        levels = [list() for _ in range(int((high - low) // IR_TEMP_DIFF) + 1)]
+        levels = [list() for _ in range(num_levels + 1)]
         for i in range(image.shape[0]):
             for j in range(image.shape[0]):
-                levels[int((image[i][j] - low) // IR_TEMP_DIFF)].append((i, j))
+                levels[int((image[i][j] - low) // (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))].append((i, j))
 
         forward_sample = 0
         for i in range(len(levels)):
@@ -102,7 +103,7 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
     return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
 
 
-def frame_to_pixel_sampling(num_samples, inputs, listdir, method, ):
+def frame_to_pixel_sampling(num_samples, inputs, listdir, method):
     X_train = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     X_valid = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)

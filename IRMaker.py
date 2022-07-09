@@ -19,28 +19,28 @@ class IRMaker(object):
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
     DATA_MAPS = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
     DATA_MAPS_COUNT = len(DATA_MAPS)
-    FRAME_RADIUS = 12
+    FRAME_RADIUS = 3
     FRAME_WINDOW = FRAME_RADIUS * 2 + 1
 
     def __init__(self, dir, train=False):
         super(IRMaker, self).__init__()
         self.dir = dir
-        self.Height = tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir)) / 100
+        self.Height = (tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir)) + 1) / 100
         self.RealSolar = tiff.imread('{base_dir}/{dir}/real_solar.tif'.format(base_dir=BASE_DIR, dir=dir))
         self.Shade = tiff.imread('{base_dir}/{dir}/shade.tif'.format(base_dir=BASE_DIR, dir=dir))
-        self.SkyView = tiff.imread('{base_dir}/{dir}/skyview.tiff'.format(base_dir=BASE_DIR, dir=dir))
-        self.SLP = tiff.imread('{base_dir}/{dir}/SLP.tif'.format(base_dir=BASE_DIR, dir=dir))
-        self.TGI = tiff.imread('{base_dir}/{dir}/TGI.tif'.format(base_dir=BASE_DIR, dir=dir))
+        self.SkyView = (tiff.imread('{base_dir}/{dir}/skyview.tiff'.format(base_dir=BASE_DIR, dir=dir)) + 1) / 3
+        self.SLP = (tiff.imread('{base_dir}/{dir}/SLP.tif'.format(base_dir=BASE_DIR, dir=dir)) + 1) / 3
+        self.TGI = (tiff.imread('{base_dir}/{dir}/TGI.tif'.format(base_dir=BASE_DIR, dir=dir)) + 1) / 3
 
         self.IR = None
         if train:
-            self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir)) * IR_TEMP_FACTOR
+            self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir)) / (TEMP_SCALE * IR_TEMP_FACTOR)
 
         with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
             self.station_data = json.loads(f.read())
 
         self.RealSolar = (np.average(self.RealSolar[1:-1, 1:-1]) * (self.RealSolar < 0) * 1. + \
-                                self.RealSolar * (self.RealSolar >= 0) * 1.) / 1000
+                                self.RealSolar * (self.RealSolar >= 0) * 1.) / 1500
 
     def generate_image(self, model):
         model.eval()

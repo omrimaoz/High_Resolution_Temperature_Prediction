@@ -9,12 +9,13 @@ import torch
 from matplotlib import pyplot as plt
 
 ROUND_CONST = 3
-BATCH_SIZE = 0
+BATCH_SIZE = 50
 DEGREE_ERROR = 0.5
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
 SPLIT_FACTOR = 0.2
 SIMILARITY_THRESHOLD = 0.3
+TEMP_SCALE = 70
 
 TO_GRAPH = True
 
@@ -44,13 +45,16 @@ def csv_to_json(path):
         time = row[0].split('_')[-1]
         time = int(time[:2]) * 6 + int(time[2:]) // 10
         data_json['time'] = float(time)
-        for i in range(1, len(row)):
+        for i in range(2, len(row)):
             if row[i] in locations:
                 data_json[fields[i]] = locations[row[i]]
             else:
                 if 'temp' in fields[i]:
-                    row[i] = (float(row[i]) - 273.5) * IR_TEMP_FACTOR
-                data_json[fields[i]] = float(row[i]) / 10 if row[i] else 0.
+                    data_json[fields[i]] = (float(row[i]) - 273.5) / (TEMP_SCALE * IR_TEMP_FACTOR)
+                elif not row[i] or float(row[i]) < 500:
+                    data_json[fields[i]] = float(row[i]) / 500 if row[i] else 0.
+                else:
+                    data_json[fields[i]] = float(row[i]) / 2000 if row[i] else 0.
         for option in ["", "_W", "_E", "_N", "_S"]:
             if row[0] + option in os.listdir("./resources"):
                 with open("./resources/{dir}/station_data.json".format(dir=row[0] + option), 'w') as data_file:
@@ -58,9 +62,9 @@ def csv_to_json(path):
 
 
 def metrics(predictions, actuals):
-    MAE = float(np.average(np.abs(actuals - predictions))) / IR_TEMP_FACTOR  # Mean Absolute Error - Average Euclidean distances between two points
-    MSE = float(np.average(np.power(actuals - predictions, 2))) / (IR_TEMP_FACTOR ** 2)
-    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR * IR_TEMP_FACTOR) * 1.)) / actuals.shape[0])
+    MAE = float(np.average(np.abs(actuals - predictions))) * (TEMP_SCALE * IR_TEMP_FACTOR)
+    MSE = float(np.average(np.power(actuals - predictions, 2))) * (TEMP_SCALE * IR_TEMP_FACTOR) ** 2
+    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
     return accuracy, MAE, MSE
 
 
