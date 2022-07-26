@@ -120,6 +120,35 @@ def find_similar_frames(model_name, dir):
     return frame_to_pixel_similarities(dir, 'Relative', 'temp_env')
 
 
+def find_all_frames(num_samples, dir):
+    IRObj = IRMaker(dir, train=True)
+    dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
+    station_data = IRObj.station_data
+    label_data = IRObj.IR
+
+    row_indices = np.random.choice(label_data.shape[0], num_samples)
+    col_indices = np.random.choice(label_data.shape[0], num_samples)
+    indices = list(zip(row_indices, col_indices))
+    random.shuffle(indices)
+
+    X = np.zeros(shape=(num_samples, IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
+                 dtype=float)
+    y = np.zeros(shape=(num_samples), dtype=float)
+    k = 0
+
+    for i, j in indices:
+        data_samples = list()
+        for image in dir_data:
+            frame = get_frame(image, i, j).flatten()
+            data_samples.extend(frame)
+        for key in IRObj.STATION_PARAMS_TO_USE:
+            data_samples.append(station_data[key])
+        X[k] = np.array(data_samples)
+        y[k] = label_data[i][j]
+        k += 1
+
+    return X[:k], y[:k]
+
 def update_model_for_testing(model, dir):
     X, y = find_similar_frames(model.name, dir)
     batch_size = 2
@@ -132,13 +161,14 @@ if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
     dir = 'Zeelim_7.11.19_1550_W'
     model_name = 'ConvNet'
-    X, y = find_similar_frames('ConvNet', dir)
+    # X, y = find_similar_frames('ConvNet', dir)
+    X, y = find_all_frames(1000, dir)
     count = 0
     for i in range(X.shape[0]):
         for j in range(X.shape[0]):
             X_diff = np.average(np.abs(X[i] - X[j]))
             y_diff = np.abs(y[i] - y[j]) * 210
-            if (X_diff > 0.5 and y_diff < 0.2) or (X_diff < 0.05 and y_diff > 1):
+            if (X_diff < 0.05 and y_diff > 1):
                 count += 1
     print('Sampled Error is: {}'.format(np.round(count / X.shape[0] ** 2, 4)))
     print(1)

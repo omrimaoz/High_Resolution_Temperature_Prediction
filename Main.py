@@ -32,7 +32,7 @@ def save_model(model, MAE):
         with open(path + JSON_EXTENSION, 'w') as f:
             f.write(json.dumps(model.cache))
         model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
-
+    print('Model Saved Successfully')
 
 def train_model(model):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
@@ -56,7 +56,7 @@ def train_model(model):
             loss.backward()
             optimizer.step()
 
-            sum_loss += loss.item() * y.shape[0]
+            sum_loss += loss.item() * y.shape[0] * 210 ** 2
             total += y.shape[0]
 
             if epoch == model.epochs -1:
@@ -69,14 +69,16 @@ def train_model(model):
 
         scheduler.step()
         epoch_lr = optimizer.param_groups[0]["lr"]
-        val_loss, val_acc, MAE, MSE = validate_model(model)
+        val_loss, accuracy, accuracy1, accuracy2, MAE, MSE = validate_model(model)
         end = time.time()
-        print('epoch: {epoch}, train_loss: {train_loss}, val_loss: {val_loss}, val_acc: {val_acc},'
-              ' MAE: {MAE}, MSE: {MSE}, time: {time}s, lr: {lr}'.format(
+        print('epoch: {epoch}, train_loss: {train_loss}, val_loss: {val_loss}, val_acc: {accuracy},'
+              ' accuracy by 1 degree: {accuracy1}, accuracy by 2 degrees: {accuracy2}, MAE: {MAE},'
+              ' MSE: {MSE}, time: {time}s, lr: {lr}'.format(
                 epoch=epoch, train_loss=np.round(sum_loss / total, ROUND_CONST), val_loss=np.round(val_loss, ROUND_CONST),
-                val_acc=np.round(val_acc, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
+                accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
+                accuracy2=np.round(accuracy2, ROUND_CONST),MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
-        if (epoch + 1) % 1000 == 0:
+        if (epoch + 1) % 250 == 0:
             save_model(model, MAE)
 
     save_model(model, MAE)
@@ -100,19 +102,19 @@ def validate_model(model):
         y_hat_cpu = y_hat.cpu()
         pred = np.array(y_hat_cpu) if pred is None else np.concatenate((pred, y_hat_cpu))
         total += y.shape[0]
-        sum_loss += loss.item() * y.shape[0]
+        sum_loss += loss.item() * y.shape[0] * 210 ** 2
 
-    accuracy, MAE, MSE = metrics(pred, actual)
+    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(pred, actual)
     model.cache['accuracy'].append(accuracy)
     model.cache['MAE'].append(MAE)
     model.cache['MSE'].append(MSE)
 
-    return sum_loss / total, accuracy, MAE, MSE
+    return sum_loss / total, accuracy, accuracy1, accuracy2, MAE, MSE
 
 
 def get_best_model(model_name, criterion):
     if not model_name:
-        return None
+        return None, None
 
     listdir = os.listdir(MODELS_DIR)
     acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
@@ -121,7 +123,7 @@ def get_best_model(model_name, criterion):
     scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
 
     if not models:
-        return None
+        return None, None
 
     idx = np.argmin(np.array(scores, dtype=float))
     inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
@@ -132,15 +134,31 @@ def get_best_model(model_name, criterion):
     with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
         model.cache = json.loads(f.read())
         model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
-    return model
+    return model, models[idx]
 
 
-def main(model_name, model, criterion, sampling_method, samples=5000, dir_name=None, exclude=False):
+def present_distribution():
+    IRObjs = list()
+    listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
+    for dir in listdir:
+        IRObjs.append(IRMaker(dir, normalize=True, train=True))
+    border = np.max([np.abs(np.max(IRObj.IR)) for IRObj in IRObjs] + [np.abs(np.min(IRObj.IR)) for IRObj in IRObjs])
+    bins = np.linspace(-border, border, 100)
+    to_stack_histogram(IRObjs,
+                       bins,
+                       title='IR distribution histograms',
+                       ylabel='Counts',
+                       xlabel='IR value',
+                       colors=['blue', 'red', 'orange', 'green', 'brown', 'pink', 'purple', 'cyan', 'brown', 'gray', 'olive']
+                       )
+
+
+def main(model_name, model, criterion, sampling_method, samples=5000, dirs_name=None, exclude=False, label_kind='ir'):
     # Create json station data for each folder
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means = prepare_data(model_name, samples, sampling_method, dir_name, exclude)
+    X_train, y_train, X_valid, y_valid, means = prepare_data(model_name, samples, sampling_method, dirs_name, exclude, label_kind)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
@@ -163,9 +181,11 @@ if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
     to_train = True
     criterion = WMSELoss
-    dir = 'Zeelim_7.11.19_1550_W'
-    model = get_best_model('ConvNet', criterion)
-    model = main('ConvNet', model, criterion, 'RFP', 100000, dir, False) if to_train else model
+    dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
+    model, model_name = get_best_model('', criterion)
+    model = main('ConvNet', model, criterion, 'RFP', 1000, dirs, False) if to_train else model
     # create_graphs(model.cache)
-    dir = 'Zeelim_7.11.19_1550_W'
+    # present_distribution()
+    dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
     # IRMaker(dir).generate_image(model)
+    # main('ConvNet', model, criterion, 'RFP', 10000, dirs, False, 'mean_ir')

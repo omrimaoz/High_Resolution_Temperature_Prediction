@@ -131,25 +131,33 @@ class FTP(TemperatureModel):
         super(FTP, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
 
     def unpack(self, pack, device):
-        X, y, data = pack[0].float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
-                     pack[1].float().to(device), pack[0].float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
-        X = X.reshape((pack[0].size()[0], IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))  # TODO replace with params
+        X, y = pack
+        if X.shape[1] == IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT:
+            X, y, data = X.float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+                         y.float().to(device), X.float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+            X = X.reshape((X.shape[0], IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))
+        else:
+            X, y, data = X.float()[:, :IRMaker.FRAME_WINDOW ** 2 * 3].to(device), \
+                         y.float().to(device), X.float()[:, IRMaker.FRAME_WINDOW ** 2 * 3:].to(device)
+            X = X.reshape((X.shape[0], 3, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))
+
         return X, y, data
 
 
 class ConvNet(FTP):
     name = 'ConvNet'
     epochs = 2000
-    lr = 1
+    lr = 0.1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
-        super(ConvNet, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
+        super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
         self.kernel_size = 2
         self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
-        self.conv1 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT, out_channels=IRMaker.DATA_MAPS_COUNT * 6, kernel_size=self.kernel_size)
+        in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 6, kernel_size=self.kernel_size)
         torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
-        self.conv2 = nn.Conv2d(in_channels=IRMaker.DATA_MAPS_COUNT * 6, out_channels=64, kernel_size=self.kernel_size)
+        self.conv2 = nn.Conv2d(in_channels=in_channels * 6, out_channels=64, kernel_size=self.kernel_size)
         # self.bn2 = nn.BatchNorm2d(64)
         self.fc1 = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
         self.fc2 = nn.Linear(120, 84)
@@ -170,13 +178,13 @@ class ConvNet(FTP):
         return x
 
     def lambda_scheduler(self, epoch):
-        # if epoch < 150:
-        #     return 0.01
+        # if epoch < 1000:
+        #     return 0.001
         # if epoch < 350:
         #     return 0.001
-        # return 0.0005
+        return 0.0001
 
-        return 0.01
+        # return 0.001
 
 
 class PretrainedModel(FTP):

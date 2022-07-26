@@ -63,7 +63,7 @@ def random_sampling_by_method(method, image, num_samples):
         return train_row, train_col, valid_row, valid_col
 
 
-def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
+def pixel_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
     X_train = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
     y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     X_valid = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
@@ -103,19 +103,21 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method):
     return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
 
 
-def frame_to_pixel_sampling(num_samples, inputs, listdir, method):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
+def frame_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
+    input_image_num = IRMaker.DATA_MAPS_COUNT if label_kind == 'ir' else 3
+    X_train = np.zeros(shape=(int(num_samples * len(listdir)), input_image_num* (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
+    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), input_image_num * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
     m, n = 0, 0
     means = list()
 
     for dir in listdir:
         IRObj = IRMaker(dir, train=True)
-        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
+        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if label_kind == 'ir' else \
+            [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
         station_data = IRObj.station_data
-        label_data = IRObj.IR
+        mean_ir = 0
         means.append(np.average(IRObj.IR))
 
         train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, num_samples)
@@ -125,10 +127,12 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method):
             for image in dir_data:
                 frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
+            if label_kind == 'mean_ir':
+                mean_ir = np.average(get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_train[m] = np.array(data_samples)
-            y_train[m] = label_data[i][j]
+            y_train[m] = IRObj.IR[i][j] if label_kind == 'ir' else mean_ir
             m += 1
 
         for i, j in zip(valid_row, valid_col):
@@ -136,22 +140,24 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method):
             for k, image in enumerate(dir_data):
                 frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
+            if label_kind == 'mean_ir':
+                mean_ir = np.average(get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_valid[n] = np.array(data_samples)
-            y_valid[n] = label_data[i][j]
+            y_valid[n] = IRObj.IR[i][j] if label_kind == 'ir' else mean_ir
             n += 1
 
     return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
 
 
-def prepare_data(model_name, num_samples, sampling_method, dir, exclude):
+def prepare_data(model_name, num_samples, sampling_method, dirs, exclude, label_kind):
     listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
-    if dir:
+    if dirs:
         if exclude:
-            listdir.remove(dir)
+            [listdir.remove(dir) for dir in dirs]
         else:
-            listdir = [dir]
+            listdir = dirs
 
     for dir in listdir:
         if not os.path.exists('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir)):
@@ -169,13 +175,13 @@ def prepare_data(model_name, num_samples, sampling_method, dir, exclude):
 
     inputs = IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
     if sampling_method == 'SPP':
-        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Simple')
+        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Simple', label_kind)
     if sampling_method == 'RPP':
-        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
+        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Relative', label_kind)
     if sampling_method == 'SFP':
-        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Simple')
+        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Simple', label_kind)
     if sampling_method == 'RFP':
         inputs = IRMaker.DATA_MAPS
-        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative')
+        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative', label_kind)
 
     return X_train, y_train, X_valid, y_valid, means

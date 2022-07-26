@@ -65,7 +65,10 @@ def metrics(predictions, actuals):
     MAE = float(np.average(np.abs(actuals - predictions))) * (TEMP_SCALE * IR_TEMP_FACTOR)
     MSE = float(np.average(np.power(actuals - predictions, 2))) * (TEMP_SCALE * IR_TEMP_FACTOR) ** 2
     accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
-    return accuracy, MAE, MSE
+    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
+    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
+
+    return accuracy, accuracy1, accuracy2, MAE, MSE
 
 
 def evaluate_prediceted_IR(dir):
@@ -100,6 +103,16 @@ def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None
     plt.xlabel(xlabel)
     plt.legend(loc=0)
     plt.show()  # uncomment if you want to show graphs
+
+
+def to_stack_histogram(IRObjs, bins, title, ylabel, xlabel, colors, v_val=None, v_label=None):
+    for i in range(len(IRObjs)):
+        plt.hist(IRObjs[i].IR.flatten(), bins, alpha=0.5, label=IRObjs[i].dir, color=colors[i])
+    plt.title(title)
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.legend(loc='upper right')
+    plt.show()
 
 
 def create_graphs(cache):
