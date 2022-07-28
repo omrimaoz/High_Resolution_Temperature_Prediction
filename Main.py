@@ -159,7 +159,15 @@ def main(model_name, model, criterion, sampling_method, samples=5000, dirs_name=
 
     # Prepare data
     X_train, y_train, X_valid, y_valid, means = prepare_data(model_name, samples, sampling_method, dirs_name, exclude, label_kind)
-
+    json_dict = {
+        'X_train': X_train.astype(np.float16).tolist(),
+        'y_train': y_train.astype(np.float16).tolist(),
+        'X_valid': X_valid.astype(np.float16).tolist(),
+        'y_valid': y_valid.astype(np.float16).tolist(),
+        'means': [float(means[0])],
+    }
+    with open('test_data.json', 'w') as f:
+        f.write(json.dumps(json_dict))
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
     valid_ds = Dataset(X_valid, y_valid)
