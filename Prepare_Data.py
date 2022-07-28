@@ -6,6 +6,8 @@ import tifffile as tiff
 from PIL import Image
 from collections import OrderedDict
 import numpy as np
+from torch import nn
+
 from IRMaker import IRMaker
 from utils import *
 
@@ -36,7 +38,11 @@ def random_sampling_by_method(method, image, num_samples):
     if method == 'Relative':
         low = np.min(image)
         high = np.max(image)
-        num_levels = int((high - low) / (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))
+        if image.dtype == np.int64:
+            scale_factor = 1
+        else:
+            scale_factor = TEMP_SCALE * IR_TEMP_FACTOR
+        num_levels = int((high - low) / (IR_TEMP_DIFF / scale_factor))
         num_level_sample = num_samples // num_levels
 
         train_indices = list()
@@ -44,7 +50,7 @@ def random_sampling_by_method(method, image, num_samples):
         levels = [list() for _ in range(num_levels + 1)]
         for i in range(image.shape[0]):
             for j in range(image.shape[0]):
-                levels[int((image[i][j] - low) // (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))].append((i, j))
+                levels[int((image[i][j] - low) // (IR_TEMP_DIFF / scale_factor))].append((i, j))
 
         forward_sample = 0
         for i in range(len(levels)):
@@ -63,22 +69,26 @@ def random_sampling_by_method(method, image, num_samples):
         return train_row, train_col, valid_row, valid_col
 
 
-def pixel_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
-    X_train = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
-    y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), inputs), dtype=np.float)
-    y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
+def pixel_to_pixel_sampling(opt, listdir, method):
+    input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
+    dtype = np.int if opt['criterion'] == nn.CrossEntropyLoss else np.float
+    X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num), dtype=np.float)
+    y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
+    X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num), dtype=np.float)
+    y_valid = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     m, n = 0, 0
     means = list()
+    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
 
     for dir in listdir:
-        IRObj = IRMaker(dir, train=True)
+        IRObj = IRMaker(dir, bias=opt['bias'], normalize=opt['normalize'], train=opt['to_train'], criterion=opt['criterion'])
+        loss_weights += IRObj.loss_weights
         dir_data = IRObj.get_data_dict()
         station_data = IRObj.station_data
         label_data = IRObj.IR
         means.append(np.average(IRObj.IR))
 
-        train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, num_samples)
+        train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, opt['samples'])
 
         for i, j in zip(train_row, train_col):
             data_samples = list()
@@ -100,39 +110,44 @@ def pixel_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
             y_valid[n] = label_data[i][j]
             n += 1
 
-    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
+    loss_weights = loss_weights / len(listdir)
+
+    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means, loss_weights
 
 
-def frame_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
-    input_image_num = IRMaker.DATA_MAPS_COUNT if label_kind == 'ir' else 3
-    X_train = np.zeros(shape=(int(num_samples * len(listdir)), input_image_num* (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
-    y_train = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
-    X_valid = np.zeros(shape=(int(num_samples * len(listdir)), input_image_num * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
-    y_valid = np.zeros(shape=(int(num_samples * len(listdir))), dtype=np.float)
+def frame_to_pixel_sampling(opt, listdir, method):
+    input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
+    dtype = np.int if opt['criterion'] == nn.CrossEntropyLoss else np.float
+    X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num* (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
+    y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
+    X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
+    y_valid = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     m, n = 0, 0
     means = list()
+    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
 
     for dir in listdir:
-        IRObj = IRMaker(dir, train=True)
-        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if label_kind == 'ir' else \
+        IRObj = IRMaker(dir, bias=opt['bias'], normalize=opt['normalize'], train=opt['to_train'], criterion=opt['criterion'])
+        loss_weights += IRObj.loss_weights
+        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
             [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
         station_data = IRObj.station_data
         mean_ir = 0
         means.append(np.average(IRObj.IR))
 
-        train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, num_samples)
+        train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, opt['samples'])
 
         for i, j in zip(train_row, train_col):
             data_samples = list()
             for image in dir_data:
                 frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
-            if label_kind == 'mean_ir':
+            if opt['label_kind'] == 'mean_ir':
                 mean_ir = np.average(get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_train[m] = np.array(data_samples)
-            y_train[m] = IRObj.IR[i][j] if label_kind == 'ir' else mean_ir
+            y_train[m] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
             m += 1
 
         for i, j in zip(valid_row, valid_col):
@@ -140,32 +155,34 @@ def frame_to_pixel_sampling(num_samples, inputs, listdir, method, label_kind):
             for k, image in enumerate(dir_data):
                 frame = get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
-            if label_kind == 'mean_ir':
+            if opt['label_kind'] == 'mean_ir':
                 mean_ir = np.average(get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_valid[n] = np.array(data_samples)
-            y_valid[n] = IRObj.IR[i][j] if label_kind == 'ir' else mean_ir
+            y_valid[n] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
             n += 1
 
-    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means
+    loss_weights = loss_weights / len(listdir)
+
+    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means, loss_weights
 
 
-def prepare_data(model_name, num_samples, sampling_method, dirs, exclude, label_kind):
+def prepare_data(opt):
     listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
-    if dirs:
-        if exclude:
-            [listdir.remove(dir) for dir in dirs]
+    if opt['dirs']:
+        if opt['exclude']:
+            [listdir.remove(dir) for dir in opt['dirs']]
         else:
-            listdir = dirs
+            listdir = opt['dirs']
 
     for dir in listdir:
         if not os.path.exists('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir)):
             listdir.remove(dir)
 
-    if model_name == 'InceptionV3':
+    if opt['model_name'] == 'InceptionV3':
         IRMaker.FRAME_RADIUS, IRMaker.FRAME_WINDOW = 149, 299
-    if model_name == 'VGG19':
+    if opt['model_name'] == 'VGG19':
         IRMaker.FRAME_RADIUS, IRMaker.FRAME_WINDOW = 112, 224
     '''
     inputs to consider:
@@ -174,14 +191,14 @@ def prepare_data(model_name, num_samples, sampling_method, dirs, exclude, label_
     '''
 
     inputs = IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
-    if sampling_method == 'SPP':
-        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Simple', label_kind)
-    if sampling_method == 'RPP':
-        X_train, y_train, X_valid, y_valid, means = pixel_to_pixel_sampling(num_samples, inputs, listdir, 'Relative', label_kind)
-    if sampling_method == 'SFP':
-        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Simple', label_kind)
-    if sampling_method == 'RFP':
+    if opt['sampling_method'] == 'SPP':
+        X_train, y_train, X_valid, y_valid, means, loss_weights = pixel_to_pixel_sampling(opt, listdir, 'Simple')
+    if opt['sampling_method'] == 'RPP':
+        X_train, y_train, X_valid, y_valid, means, loss_weights = pixel_to_pixel_sampling(opt, listdir, 'Relative')
+    if opt['sampling_method'] == 'SFP':
+        X_train, y_train, X_valid, y_valid, means, loss_weights = frame_to_pixel_sampling(opt, listdir, 'Simple')
+    if opt['sampling_method'] == 'RFP':
         inputs = IRMaker.DATA_MAPS
-        X_train, y_train, X_valid, y_valid, means = frame_to_pixel_sampling(num_samples, inputs, listdir, 'Relative', label_kind)
+        X_train, y_train, X_valid, y_valid, means, loss_weights = frame_to_pixel_sampling(opt, listdir, 'Relative')
 
-    return X_train, y_train, X_valid, y_valid, means
+    return X_train, y_train, X_valid, y_valid, means, loss_weights

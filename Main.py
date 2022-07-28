@@ -34,7 +34,7 @@ def save_model(model, MAE):
         model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
     print('Model Saved Successfully')
 
-def train_model(model):
+def train_model(model, opt):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = torch.optim.SGD(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
@@ -56,10 +56,11 @@ def train_model(model):
             loss.backward()
             optimizer.step()
 
-            sum_loss += loss.item() * y.shape[0] * 210 ** 2
+            scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
+            sum_loss += loss.item() * y.shape[0] * scale_factor
             total += y.shape[0]
 
-            if epoch == model.epochs -1:
+            if epoch == model.epochs - 1:
                 y_cpu, y_hat_cpu = y.cpu(), y_hat.cpu()
                 if model.cache['train_prediction'] is not None:
                     model.cache['train_prediction'] = np.hstack((model.cache['train_prediction'],
@@ -69,7 +70,7 @@ def train_model(model):
 
         scheduler.step()
         epoch_lr = optimizer.param_groups[0]["lr"]
-        val_loss, accuracy, accuracy1, accuracy2, MAE, MSE = validate_model(model)
+        val_loss, accuracy, accuracy1, accuracy2, MAE, MSE = validate_model(model, opt)
         end = time.time()
         print('epoch: {epoch}, train_loss: {train_loss}, val_loss: {val_loss}, val_acc: {accuracy},'
               ' accuracy by 1 degree: {accuracy1}, accuracy by 2 degrees: {accuracy2}, MAE: {MAE},'
@@ -84,7 +85,7 @@ def train_model(model):
     save_model(model, MAE)
 
 
-def validate_model(model):
+def validate_model(model, opt):
     model.eval()
     total = 0
     sum_loss = 0.0
@@ -102,9 +103,10 @@ def validate_model(model):
         y_hat_cpu = y_hat.cpu()
         pred = np.array(y_hat_cpu) if pred is None else np.concatenate((pred, y_hat_cpu))
         total += y.shape[0]
-        sum_loss += loss.item() * y.shape[0] * 210 ** 2
+        scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
+        sum_loss += loss.item() * y.shape[0] * scale_factor
 
-    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(pred, actual)
+    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(pred, actual, opt)
     model.cache['accuracy'].append(accuracy)
     model.cache['MAE'].append(MAE)
     model.cache['MSE'].append(MSE)
@@ -131,9 +133,9 @@ def get_best_model(model_name, criterion):
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
     # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
-    with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
-        model.cache = json.loads(f.read())
-        model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
+    # with open('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]).replace(MODEL_EXTENSION, JSON_EXTENSION), 'r') as f:
+    #     model.cache = json.loads(f.read())
+    #     model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
     return model, models[idx]
 
 
@@ -153,12 +155,12 @@ def present_distribution():
                        )
 
 
-def main(model_name, model, criterion, sampling_method, samples=5000, dirs_name=None, exclude=False, label_kind='ir'):
+def main(opt):
     # Create json station data for each folder
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means = prepare_data(model_name, samples, sampling_method, dirs_name, exclude, label_kind)
+    X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
@@ -166,24 +168,37 @@ def main(model_name, model, criterion, sampling_method, samples=5000, dirs_name=
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     valid_dl = DataLoader(valid_ds, batch_size=batch_size)
 
-    if model:
-        model.train_loader = train_dl
-        model.valid_loader = valid_dl
-        model.means = means
+    if opt['model']:
+        opt['model'].train_loader = train_dl
+        opt['model'].valid_loader = valid_dl
+        opt['model'].means = means
     else:
-        model = ModelFactory.create_model(model_name, train_dl, valid_dl, means, X_train.shape[-1], 1, criterion).to(device)
+        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, loss_weights, X_train.shape[-1], opt['criterion']).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
-    train_model(model)
+    train_model(model, opt)
     return model
 
 
 if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
-    to_train = True
-    criterion = WMSELoss
-    dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
-    model, model_name = get_best_model('', criterion)
-    model = main('ConvNet', model, criterion, 'RFP', 1000, dirs, False) if to_train else model
+
+    opt = {
+        'to_train': True,
+        'criterion': WMSELoss,
+        'dirs': ['Zeelim_30.5.19_0630_E'],
+        'model_name': 'ConvNet',
+        'sampling_method': 'RFP',
+        'samples': 5000,
+        'exclude': False,
+        'bias': None,
+        'normalize': True,
+        'label_kind': 'ir',
+        'use_loss_weights': False
+    }
+    model, mae = get_best_model('', opt['criterion'])
+    opt['model'] = model
+    model = main(opt) if opt['to_train'] else model
+
     # create_graphs(model.cache)
     # present_distribution()
     dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']

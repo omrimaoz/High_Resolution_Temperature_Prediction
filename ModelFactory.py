@@ -7,7 +7,14 @@ class ModelFactory():
         pass
 
     @staticmethod
-    def create_model(model_name, train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion=None):
+    def create_model(model_name, train_dl, valid_dl, means, loss_weights, inputs_dim, criterion=None):
+        if not criterion or isinstance(criterion, types.FunctionType) or criterion == nn.MSELoss:
+            outputs_dim = 1
+        else:
+            # CrossEntropyLoss
+            outputs_dim = TEMP_SCALE * IR_TEMP_FACTOR
+            criterion = criterion(weight=torch.tensor(loss_weights))
+
         if model_name == 'IRValue':
             if criterion:
                 return IRValue(train_dl, valid_dl, means, inputs_dim, outputs_dim, criterion)

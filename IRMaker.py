@@ -3,6 +3,7 @@ import json
 import numpy as np
 import tifffile as tiff
 from PIL import Image
+from torch import nn
 from torch.utils.data import DataLoader
 from matplotlib import cm
 
@@ -22,7 +23,7 @@ class IRMaker(object):
     FRAME_RADIUS = 3
     FRAME_WINDOW = FRAME_RADIUS * 2 + 1
 
-    def __init__(self, dir, bias=None, normalize=True, train=False):
+    def __init__(self, dir, bias=None, normalize=True, train=False, criterion=None):
         super(IRMaker, self).__init__()
         self.dir = dir
         self.Height = tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir))
@@ -42,7 +43,9 @@ class IRMaker(object):
         self.IR = None
         if train:
             self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
-            if normalize:
+            if criterion == nn.CrossEntropyLoss:
+                self.IR = self.IR * IR_TEMP_FACTOR
+            elif normalize:
                 self.IR = self.IR / (TEMP_SCALE * IR_TEMP_FACTOR)
             if bias is None:
                 self.IR -= np.mean(self.IR)
@@ -50,6 +53,16 @@ class IRMaker(object):
                 self.IR -= bias
             self.mu = np.mean(self.IR)
             self.sigma = np.sqrt(np.average(np.power(self.IR, 2)))
+
+            if criterion == nn.CrossEntropyLoss:
+                self.IR = (self.IR + POSITIVE_CONST).astype(int)
+                loss_weights = 10 / (np.bincount(self.IR.flatten()) + 1)
+                if loss_weights.shape[0] < TEMP_SCALE * IR_TEMP_FACTOR:
+                    self.loss_weights = np.concatenate((loss_weights, np.ones(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
+                else:
+                    self.loss_weights = loss_weights[: TEMP_SCALE * IR_TEMP_FACTOR]
+            else:
+                self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
 
         with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
             self.station_data = json.loads(f.read())

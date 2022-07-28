@@ -7,6 +7,7 @@ import numpy as np
 import tifffile as tiff
 import torch
 from matplotlib import pyplot as plt
+from torch import nn
 
 ROUND_CONST = 3
 BATCH_SIZE = 50
@@ -16,6 +17,7 @@ IR_TEMP_DIFF = 0.2
 SPLIT_FACTOR = 0.2
 SIMILARITY_THRESHOLD = 0.3
 TEMP_SCALE = 70
+POSITIVE_CONST = 70
 
 TO_GRAPH = True
 
@@ -61,12 +63,14 @@ def csv_to_json(path):
                     json.dump(data_json, data_file, indent=4, separators=(',', ': '))
 
 
-def metrics(predictions, actuals):
-    MAE = float(np.average(np.abs(actuals - predictions))) * (TEMP_SCALE * IR_TEMP_FACTOR)
-    MSE = float(np.average(np.power(actuals - predictions, 2))) * (TEMP_SCALE * IR_TEMP_FACTOR) ** 2
-    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
-    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
-    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / (TEMP_SCALE * IR_TEMP_FACTOR)) * 1.)) / actuals.shape[0])
+def metrics(predictions, actuals, opt):
+    upscale_factor = TEMP_SCALE * IR_TEMP_FACTOR if opt['normalize'] and opt['criterion'] != nn.CrossEntropyLoss else 1
+    downscale_factor = 1 / IR_TEMP_FACTOR if opt['criterion'] == nn.CrossEntropyLoss else upscale_factor
+    MAE = float(np.average(np.abs(actuals - predictions))) * upscale_factor
+    MSE = float(np.average(np.power(actuals - predictions, 2))) * upscale_factor ** 2
+    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / downscale_factor) * 1.)) / actuals.shape[0])
+    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / downscale_factor) * 1.)) / actuals.shape[0])
+    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / downscale_factor) * 1.)) / actuals.shape[0])
 
     return accuracy, accuracy1, accuracy2, MAE, MSE
 

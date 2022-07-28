@@ -3,9 +3,9 @@ import torch
 
 def WMSELoss(output, target, means, device):
     mask = ((means != 0) * 1.).to(device)
-    weights = ((torch.abs((means.T - (target * mask.T)) * 10) + 1) ** 3).to(device)
+    weights = (torch.sum((torch.abs((means.T - (target * mask.T)) * 10) + 1) ** 3, dim=0) - 1).to(device)
     # loss = torch.mean(torch.sum(weights * ((output - target) ** 2), dim=0))
-    loss = (torch.sum(weights * ((output - target) ** 2))).to(device)
+    loss = (torch.mean(weights * ((output - target) ** 2))).to(device)
     return loss
 
 

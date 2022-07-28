@@ -26,7 +26,7 @@ class TemperatureModel(torch.nn.Module):
         self.valid_loader = valid_loader
         self.means = means
         self.inputs_dim = inputs_dim
-        self.outputs_dim = outputs_dim * IR_TEMP_FACTOR if outputs_dim > 1 else outputs_dim
+        self.outputs_dim = outputs_dim
         self.criterion = criterion
 
     def find_close_means(self, target, device):
@@ -48,6 +48,8 @@ class TemperatureModel(torch.nn.Module):
                 const = 100
                 output = output.view(-1)
                 return self.criterion(output, target, const, device)
+        if self.outputs_dim > 1:
+            return self.criterion(output.double(), target)
         return self.criterion(output, target)
 
     def predict(self, y_hat):
@@ -133,12 +135,14 @@ class FTP(TemperatureModel):
     def unpack(self, pack, device):
         X, y = pack
         if X.shape[1] == IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT:
-            X, y, data = X.float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
-                         y.float().to(device), X.float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
+            y = y.long().to(device) if self.outputs_dim > 1 else y.float().to(device)
+            X, data = X.float()[:, :IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT].to(device),\
+                        X.float()[:, IRMaker.FRAME_WINDOW**2 * IRMaker.DATA_MAPS_COUNT:].to(device)
             X = X.reshape((X.shape[0], IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))
         else:
-            X, y, data = X.float()[:, :IRMaker.FRAME_WINDOW ** 2 * 3].to(device), \
-                         y.float().to(device), X.float()[:, IRMaker.FRAME_WINDOW ** 2 * 3:].to(device)
+            y = y.long().to(device) if self.outputs_dim > 1 else y.float().to(device)
+            X, data = X.float()[:, :IRMaker.FRAME_WINDOW ** 2 * 3].to(device), \
+                        X.float()[:, IRMaker.FRAME_WINDOW ** 2 * 3:].to(device)
             X = X.reshape((X.shape[0], 3, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW))
 
         return X, y, data
@@ -146,8 +150,8 @@ class FTP(TemperatureModel):
 
 class ConvNet(FTP):
     name = 'ConvNet'
-    epochs = 2000
-    lr = 0.1
+    epochs = 20000
+    lr = 1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
@@ -178,11 +182,11 @@ class ConvNet(FTP):
         return x
 
     def lambda_scheduler(self, epoch):
-        # if epoch < 1000:
-        #     return 0.001
-        # if epoch < 350:
-        #     return 0.001
-        return 0.0001
+        if epoch < 50:
+            return 0.001
+        # if epoch < 500:
+        #     return 0.0001
+        return 0.00001
 
         # return 0.001
 
