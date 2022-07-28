@@ -181,9 +181,9 @@ if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
     to_train = True
     criterion = WMSELoss
-    dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
+    dirs = ['Zeelim_30.5.19_0630_E'] #, 'Mishmar_3.3.20_1510_N']
     model, model_name = get_best_model('', criterion)
-    model = main('ConvNet', model, criterion, 'RFP', 1000, dirs, False) if to_train else model
+    model = main('ConvNet', model, criterion, 'RFP', 5000, dirs, False) if to_train else model
     # create_graphs(model.cache)
     # present_distribution()
     dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
