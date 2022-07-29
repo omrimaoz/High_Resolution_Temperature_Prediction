@@ -162,6 +162,12 @@ def main(opt):
     # Prepare data
     X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
 
+    # with open('test_data.json', 'r') as f:
+    #     json_dict = json.loads(f.read())
+    # X_train, y_train, X_valid, y_valid, means, loss_weights = \
+    #     np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
+    #     np.array(json_dict['y_valid']), np.array(json_dict['means']), None
+
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
     valid_ds = Dataset(X_valid, y_valid)
@@ -184,14 +190,14 @@ if __name__ == '__main__':
 
     opt = {
         'to_train': True,
-        'criterion': WMSELoss,
+        'criterion': nn.CrossEntropyLoss,
         'dirs': ['Zeelim_30.5.19_0630_E'],
         'model_name': 'ConvNet',
         'sampling_method': 'RFP',
         'samples': 5000,
         'exclude': False,
         'bias': None,
-        'normalize': True,
+        'normalize': False,
         'label_kind': 'ir',
         'use_loss_weights': False
     }

@@ -181,11 +181,20 @@ class ConvNet(FTP):
         x = self.fc3(x)
         return x
 
+    # WMSE
+    def lambda_scheduler(self, epoch):
+        # if epoch < 50:
+        #     return 0.001
+        # if epoch < 500:
+        #     return 0.0001
+        return 0.00001
+
+    # CE
     def lambda_scheduler(self, epoch):
         if epoch < 50:
             return 0.001
-        # if epoch < 500:
-        #     return 0.0001
+        if epoch < 500:
+            return 0.0001
         return 0.00001
 
         # return 0.001
