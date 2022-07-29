@@ -36,7 +36,7 @@ def save_model(model, MAE):
 
 def train_model(model, opt):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.SGD(parameters, lr=model.lr)
+    optimizer = torch.optim.Adam(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
 
     MAE = None
@@ -129,7 +129,7 @@ def get_best_model(model_name, criterion):
 
     idx = np.argmin(np.array(scores, dtype=float))
     inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
-    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, criterion).to(device)
+    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, criterion, opt).to(device)
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
     # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
@@ -160,14 +160,15 @@ def main(opt):
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    # X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
+    X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
 
-    with open('test_data.json', 'r') as f:
-        json_dict = json.loads(f.read())
-    X_train, y_train, X_valid, y_valid, means, loss_weights = \
-        np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
-        np.array(json_dict['y_valid']), np.array(json_dict['means']), None
+    # with open('test_data.json', 'r') as f:
+    #     json_dict = json.loads(f.read())
+    # X_train, y_train, X_valid, y_valid, means, loss_weights = \
+    #     np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
+    #     np.array(json_dict['y_valid']), np.array(json_dict['means']), None
 
+    torch.manual_seed(42)
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
     valid_ds = Dataset(X_valid, y_valid)
@@ -179,7 +180,7 @@ def main(opt):
         opt['model'].valid_loader = valid_dl
         opt['model'].means = means
     else:
-        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion']).to(device)
+        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion'], opt).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model, opt)
     return model

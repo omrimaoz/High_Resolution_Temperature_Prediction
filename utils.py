@@ -64,13 +64,13 @@ def csv_to_json(path):
 
 
 def metrics(predictions, actuals, opt):
-    upscale_factor = TEMP_SCALE * IR_TEMP_FACTOR if opt['normalize'] and opt['criterion'] != nn.CrossEntropyLoss else 1
-    downscale_factor = 1 / IR_TEMP_FACTOR if opt['isCE'] else upscale_factor
+    upscale_factor = TEMP_SCALE * IR_TEMP_FACTOR if opt['normalize'] and not opt['isCE'] else 1 / IR_TEMP_FACTOR
+    # downscale_factor = 1 / IR_TEMP_FACTOR if opt['isCE'] else upscale_factor
     MAE = float(np.average(np.abs(actuals - predictions))) * upscale_factor
     MSE = float(np.average(np.power(actuals - predictions, 2))) * upscale_factor ** 2
-    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / downscale_factor) * 1.)) / actuals.shape[0])
-    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / downscale_factor) * 1.)) / actuals.shape[0])
-    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / downscale_factor) * 1.)) / actuals.shape[0])
+    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / upscale_factor) * 1.)) / actuals.shape[0])
+    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / upscale_factor) * 1.)) / actuals.shape[0])
+    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / upscale_factor) * 1.)) / actuals.shape[0])
 
     return accuracy, accuracy1, accuracy2, MAE, MSE
 

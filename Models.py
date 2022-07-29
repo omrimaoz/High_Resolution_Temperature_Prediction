@@ -20,7 +20,7 @@ class TemperatureModel(torch.nn.Module):
         'actual_mean': 0.
     }
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
         super().__init__()
         self.train_loader = train_loader
         self.valid_loader = valid_loader
@@ -28,6 +28,7 @@ class TemperatureModel(torch.nn.Module):
         self.inputs_dim = inputs_dim
         self.outputs_dim = outputs_dim
         self.criterion = criterion
+        self.opt = opt
 
     def find_close_means(self, target, device):
         matrix = torch.tile(torch.tensor(self.means), dims=(target.shape[0], 1)).to(device)
@@ -63,8 +64,8 @@ class IRValue(TemperatureModel):
     epochs = 50
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(IRValue, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(IRValue, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
         self.linear1 = nn.Linear(inputs_dim, 32)
         self.linear2 = nn.Linear(32, 32)
         # self.linear3 = nn.Linear(128, 256)
@@ -100,8 +101,8 @@ class IRClass(TemperatureModel):
     epochs = 20
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(IRClass, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(IRClass, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
         self.linear1 = nn.Linear(inputs_dim, 256)
         self.linear2 = nn.Linear(256, 256)
         self.fc = nn.Linear(256, self.outputs_dim)
@@ -128,8 +129,8 @@ class IRClass(TemperatureModel):
 
 
 class FTP(TemperatureModel):
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
-        super(FTP, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss(), opt=None):
+        super(FTP, self).__init__(train_loader, valid_loader, means, IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT, outputs_dim, criterion, opt)
 
     def unpack(self, pack, device):
         X, y = pack
@@ -152,8 +153,8 @@ class ConvNet(FTP):
     epochs = 20000
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
-        super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss(), opt=None):
+        super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
         self.kernel_size = 5
         self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
         in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
@@ -180,29 +181,30 @@ class ConvNet(FTP):
         x = self.fc3(x)
         return x
 
-    # WMSE
-    # def lambda_scheduler(self, epoch):
-    #     # if epoch < 50:
-    #     #     return 0.001
-    #     # if epoch < 500:
-    #     #     return 0.0001
-    #     return 0.00001
-
     # CE
     def lambda_scheduler(self, epoch):
-        if epoch < 80:
-            return 0.01
-        if epoch < 150:
-            return 0.001
-        return 0.0005
+        # CE
+        if self.opt['isCE']:
+            if epoch < 80:
+                return 0.01
+            if epoch < 150:
+                return 0.001
+            return 0.0005
+        # WMSE, MSE
+        else:
+            # if epoch < 50:
+            #     return 0.001
+            # if epoch < 500:
+            #     return 0.0001
+            return 0.00001
 
 
 class PretrainedModel(FTP):
     epochs = 100
     lr = 0.1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, pretrained_model):
-        super(PretrainedModel, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, pretrained_model):
+        super(PretrainedModel, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
         self.pretrained_model = pretrained_model
         # self.pretrained_model.fc = nn.Identity()
         self.fc_inputs = IRMaker.STATION_PARAMS_COUNT
@@ -227,8 +229,8 @@ class ResNet18(PretrainedModel):
     epochs = 300
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet18(pretrained=False))
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet18(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
         torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
@@ -252,8 +254,8 @@ class ResNet50(PretrainedModel):
     epochs = 200
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(ResNet50, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet50(pretrained=False))
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(ResNet50, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet50(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
         torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
@@ -274,8 +276,8 @@ class InceptionV3(PretrainedModel):
     epochs = 100
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(InceptionV3, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.inception_v3(pretrained=False))
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(InceptionV3, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.inception_v3(pretrained=False))
         self.pretrained_model.Conv2d_1a_3x3.conv = nn.Conv2d(6, 32, kernel_size=3, stride=2, bias=False)
         torch.nn.init.xavier_uniform(self.pretrained_model.Conv2d_1a_3x3.conv.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
@@ -297,8 +299,8 @@ class VGG19(PretrainedModel):
     epochs = 100
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(VGG19, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.vgg19(pretrained=False))
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(VGG19, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.vgg19(pretrained=False))
         self.pretrained_model.features[0] = nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1, bias=False)
         torch.nn.init.xavier_uniform(self.pretrained_model.features[0].weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
@@ -319,8 +321,8 @@ class ResNetXt101(PretrainedModel):
     epochs = 1000
     lr = 1
 
-    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion):
-        super(ResNetXt101, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, models.resnet101(pretrained=False))
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
+        super(ResNetXt101, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet101(pretrained=False))
         self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
         torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000

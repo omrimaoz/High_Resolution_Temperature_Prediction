@@ -57,13 +57,14 @@ class IRMaker(object):
             if opt['isCE']:
                 self.IR = (self.IR + POSITIVE_CONST).astype(int)
                 if opt['use_loss_weights']:
-                    self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
-                else:
-                    loss_weights = 10 / (np.bincount(self.IR.flatten()) + 1)
+                    loss_weights = 1 / np.sqrt((np.bincount(self.IR.flatten()) + 1))
                     if loss_weights.shape[0] < TEMP_SCALE * IR_TEMP_FACTOR:
                         self.loss_weights = np.concatenate((loss_weights, np.ones(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
                     else:
                         self.loss_weights = loss_weights[: TEMP_SCALE * IR_TEMP_FACTOR]
+                else:
+                    self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
+
             else:
                 self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
 
