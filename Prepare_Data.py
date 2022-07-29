@@ -71,7 +71,7 @@ def random_sampling_by_method(method, image, num_samples):
 
 def pixel_to_pixel_sampling(opt, listdir, method):
     input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
-    dtype = np.int if opt['criterion'] == nn.CrossEntropyLoss else np.float
+    dtype = np.int if opt['isCE'] else np.float
     X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num), dtype=np.float)
     y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num), dtype=np.float)
@@ -81,7 +81,7 @@ def pixel_to_pixel_sampling(opt, listdir, method):
     loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
 
     for dir in listdir:
-        IRObj = IRMaker(dir, bias=opt['bias'], normalize=opt['normalize'], train=opt['to_train'], criterion=opt['criterion'])
+        IRObj = IRMaker(dir, opt)
         loss_weights += IRObj.loss_weights
         dir_data = IRObj.get_data_dict()
         station_data = IRObj.station_data
@@ -117,7 +117,7 @@ def pixel_to_pixel_sampling(opt, listdir, method):
 
 def frame_to_pixel_sampling(opt, listdir, method):
     input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
-    dtype = np.int if opt['criterion'] == nn.CrossEntropyLoss else np.float
+    dtype = np.int if opt['isCE'] else np.float
     X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num* (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
@@ -127,7 +127,7 @@ def frame_to_pixel_sampling(opt, listdir, method):
     loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
 
     for dir in listdir:
-        IRObj = IRMaker(dir, bias=opt['bias'], normalize=opt['normalize'], train=opt['to_train'], criterion=opt['criterion'])
+        IRObj = IRMaker(dir, opt)
         loss_weights += IRObj.loss_weights
         dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
             [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]

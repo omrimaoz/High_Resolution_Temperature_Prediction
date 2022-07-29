@@ -79,7 +79,7 @@ def random_similar_sampling_by_method(method, image, metric):
         return test_row, test_col
 
 def frame_to_pixel_similarities(dir, method, metric):
-    IRObj = IRMaker(dir, train=True)
+    IRObj = IRMaker(dir, opt)
     dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
     station_data = IRObj.station_data
     label_data = IRObj.IR
@@ -121,7 +121,7 @@ def find_similar_frames(model_name, dir):
 
 
 def find_all_frames(num_samples, dir):
-    IRObj = IRMaker(dir, train=True)
+    IRObj = IRMaker(dir, opt)
     dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
     station_data = IRObj.station_data
     label_data = IRObj.IR

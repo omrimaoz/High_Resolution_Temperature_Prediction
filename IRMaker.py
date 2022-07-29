@@ -16,14 +16,14 @@ class IRMaker(object):
     # STATION_PARAMS_TO_USE = ["julian_day", 'time', "habitat", "wind_speed", "temperature", "humidity", "pressure",
     #                          "radiation",
     #                          "IR_temp"]
-    STATION_PARAMS_TO_USE = ["julian_day", "time", "habitat"]
+    STATION_PARAMS_TO_USE = []#["julian_day", "time", "habitat"]
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
     DATA_MAPS = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
     DATA_MAPS_COUNT = len(DATA_MAPS)
-    FRAME_RADIUS = 3
+    FRAME_RADIUS = 12
     FRAME_WINDOW = FRAME_RADIUS * 2 + 1
 
-    def __init__(self, dir, bias=None, normalize=True, train=False, criterion=None):
+    def __init__(self, dir, opt):
         super(IRMaker, self).__init__()
         self.dir = dir
         self.Height = tiff.imread('{base_dir}/{dir}/height.tif'.format(base_dir=BASE_DIR, dir=dir))
@@ -34,33 +34,36 @@ class IRMaker(object):
         self.TGI = tiff.imread('{base_dir}/{dir}/TGI.tif'.format(base_dir=BASE_DIR, dir=dir))
         self.RGB = tiff.imread('{base_dir}/{dir}/RGB.tif'.format(base_dir=BASE_DIR, dir=dir))[:, :, :3]
 
-        if normalize:
+        if opt['normalize']:
             self.Height = (self.Height + 1) / 100
             self.SkyView = (self.SkyView + 1) / 3
             self.SLP = (self.SLP + 1) / 3
             self.TGI = (self.TGI + 1) / 3
 
         self.IR = None
-        if train:
+        if opt['to_train']:
             self.IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
-            if criterion == nn.CrossEntropyLoss:
+            if opt['isCE']:
                 self.IR = self.IR * IR_TEMP_FACTOR
-            elif normalize:
+            elif opt['normalize']:
                 self.IR = self.IR / (TEMP_SCALE * IR_TEMP_FACTOR)
-            if bias is None:
+            if opt['bias'] is None:
                 self.IR -= np.mean(self.IR)
             else:
-                self.IR -= bias
+                self.IR -= opt['bias']
             self.mu = np.mean(self.IR)
             self.sigma = np.sqrt(np.average(np.power(self.IR, 2)))
 
-            if criterion == nn.CrossEntropyLoss:
+            if opt['isCE']:
                 self.IR = (self.IR + POSITIVE_CONST).astype(int)
-                loss_weights = 10 / (np.bincount(self.IR.flatten()) + 1)
-                if loss_weights.shape[0] < TEMP_SCALE * IR_TEMP_FACTOR:
-                    self.loss_weights = np.concatenate((loss_weights, np.ones(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
+                if opt['use_loss_weights']:
+                    self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
                 else:
-                    self.loss_weights = loss_weights[: TEMP_SCALE * IR_TEMP_FACTOR]
+                    loss_weights = 10 / (np.bincount(self.IR.flatten()) + 1)
+                    if loss_weights.shape[0] < TEMP_SCALE * IR_TEMP_FACTOR:
+                        self.loss_weights = np.concatenate((loss_weights, np.ones(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
+                    else:
+                        self.loss_weights = loss_weights[: TEMP_SCALE * IR_TEMP_FACTOR]
             else:
                 self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
 

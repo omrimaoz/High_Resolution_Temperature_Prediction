@@ -48,8 +48,7 @@ class TemperatureModel(torch.nn.Module):
                 const = 100
                 output = output.view(-1)
                 return self.criterion(output, target, const, device)
-        if self.outputs_dim > 1:
-            return self.criterion(output.double(), target)
+
         return self.criterion(output, target)
 
     def predict(self, y_hat):
@@ -155,7 +154,7 @@ class ConvNet(FTP):
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss()):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion)
-        self.kernel_size = 2
+        self.kernel_size = 5
         self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
         in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 6, kernel_size=self.kernel_size)
@@ -182,22 +181,20 @@ class ConvNet(FTP):
         return x
 
     # WMSE
-    def lambda_scheduler(self, epoch):
-        # if epoch < 50:
-        #     return 0.001
-        # if epoch < 500:
-        #     return 0.0001
-        return 0.00001
+    # def lambda_scheduler(self, epoch):
+    #     # if epoch < 50:
+    #     #     return 0.001
+    #     # if epoch < 500:
+    #     #     return 0.0001
+    #     return 0.00001
 
     # CE
     def lambda_scheduler(self, epoch):
-        if epoch < 50:
+        if epoch < 80:
+            return 0.01
+        if epoch < 150:
             return 0.001
-        if epoch < 500:
-            return 0.0001
-        return 0.00001
-
-        # return 0.001
+        return 0.0005
 
 
 class PretrainedModel(FTP):

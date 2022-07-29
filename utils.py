@@ -12,7 +12,7 @@ from torch import nn
 ROUND_CONST = 3
 BATCH_SIZE = 50
 DEGREE_ERROR = 0.5
-IR_TEMP_FACTOR = 3
+IR_TEMP_FACTOR = 10
 IR_TEMP_DIFF = 0.2
 SPLIT_FACTOR = 0.2
 SIMILARITY_THRESHOLD = 0.3
@@ -65,7 +65,7 @@ def csv_to_json(path):
 
 def metrics(predictions, actuals, opt):
     upscale_factor = TEMP_SCALE * IR_TEMP_FACTOR if opt['normalize'] and opt['criterion'] != nn.CrossEntropyLoss else 1
-    downscale_factor = 1 / IR_TEMP_FACTOR if opt['criterion'] == nn.CrossEntropyLoss else upscale_factor
+    downscale_factor = 1 / IR_TEMP_FACTOR if opt['isCE'] else upscale_factor
     MAE = float(np.average(np.abs(actuals - predictions))) * upscale_factor
     MSE = float(np.average(np.power(actuals - predictions, 2))) * upscale_factor ** 2
     accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / downscale_factor) * 1.)) / actuals.shape[0])

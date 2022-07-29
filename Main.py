@@ -129,7 +129,7 @@ def get_best_model(model_name, criterion):
 
     idx = np.argmin(np.array(scores, dtype=float))
     inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
-    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, 1, criterion).to(device)
+    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, criterion).to(device)
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
     # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
@@ -139,11 +139,11 @@ def get_best_model(model_name, criterion):
     return model, models[idx]
 
 
-def present_distribution():
+def present_distribution(opt):
     IRObjs = list()
     listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
     for dir in listdir:
-        IRObjs.append(IRMaker(dir, normalize=True, train=True))
+        IRObjs.append(IRMaker(dir, opt))
     border = np.max([np.abs(np.max(IRObj.IR)) for IRObj in IRObjs] + [np.abs(np.min(IRObj.IR)) for IRObj in IRObjs])
     bins = np.linspace(-border, border, 100)
     to_stack_histogram(IRObjs,
@@ -160,13 +160,13 @@ def main(opt):
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
-    X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
+    # X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
 
-    # with open('test_data.json', 'r') as f:
-    #     json_dict = json.loads(f.read())
-    # X_train, y_train, X_valid, y_valid, means, loss_weights = \
-    #     np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
-    #     np.array(json_dict['y_valid']), np.array(json_dict['means']), None
+    with open('test_data.json', 'r') as f:
+        json_dict = json.loads(f.read())
+    X_train, y_train, X_valid, y_valid, means, loss_weights = \
+        np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
+        np.array(json_dict['y_valid']), np.array(json_dict['means']), None
 
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
@@ -179,7 +179,7 @@ def main(opt):
         opt['model'].valid_loader = valid_dl
         opt['model'].means = means
     else:
-        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, loss_weights, X_train.shape[-1], opt['criterion']).to(device)
+        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion']).to(device)
     model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model, opt)
     return model
@@ -190,6 +190,7 @@ if __name__ == '__main__':
 
     opt = {
         'to_train': True,
+        'isCE': True,
         'criterion': nn.CrossEntropyLoss,
         'dirs': ['Zeelim_30.5.19_0630_E'],
         'model_name': 'ConvNet',
@@ -206,7 +207,7 @@ if __name__ == '__main__':
     model = main(opt) if opt['to_train'] else model
 
     # create_graphs(model.cache)
-    # present_distribution()
+    # present_distribution(opt)
     dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
     # IRMaker(dir).generate_image(model)
     # main('ConvNet', model, criterion, 'RFP', 10000, dirs, False, 'mean_ir')
