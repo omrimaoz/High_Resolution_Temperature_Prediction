@@ -163,7 +163,7 @@ class ConvNet(FTP):
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
         self.conv2 = nn.Conv2d(in_channels=in_channels * 6, out_channels=64, kernel_size=self.kernel_size)
         # self.bn2 = nn.BatchNorm2d(64)
-        self.fc1 = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, 120)  # TODO why 9?
+        self.fc1 = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, self.outputs_dim)
 
@@ -185,11 +185,11 @@ class ConvNet(FTP):
     def lambda_scheduler(self, epoch):
         # CE
         if self.opt['isCE']:
-            if epoch < 80:
+            if epoch < 35:
                 return 0.01
             if epoch < 150:
-                return 0.001
-            return 0.0005
+                return 0.0005
+            return 0.0001
         # WMSE, MSE
         else:
             # if epoch < 50:

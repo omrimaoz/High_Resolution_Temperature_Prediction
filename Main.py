@@ -201,7 +201,9 @@ if __name__ == '__main__':
         'bias': None,
         'normalize': False,
         'label_kind': 'ir',
-        'use_loss_weights': False
+        'use_loss_weights': False,
+        'augmentation': True,
+        'augmentation_p': 0.25
     }
     model, mae = get_best_model('', opt['criterion'])
     opt['model'] = model

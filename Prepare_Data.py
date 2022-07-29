@@ -10,6 +10,7 @@ from torch import nn
 
 from IRMaker import IRMaker
 from utils import *
+from Augmentation import *
 
 data_map = OrderedDict({
     'Height': None,
@@ -23,6 +24,20 @@ data_map = OrderedDict({
 
 def get_frame(image, i, j):
     return image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW]
+
+
+def augmentation(X, y, opt):
+    filters = [rotate_90, rotate_270, vflip, noise] # [rotate_90, rotate_180, rotate_270, vflip, hflip, noise]
+    aug_X = np.zeros(shape=(X.shape[0] * len(filters), X.shape[1]))
+    aug_y = np.zeros(shape=(X.shape[0] * len(filters)))
+
+    for i in range(X.shape[0]):
+        frame = X[i].reshape(IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW)
+        for j, filter in enumerate(filters):
+            aug_X[i * len(filters) + j] = filter(frame, opt['augmentation_p']).flatten()
+            aug_y[i * len(filters) + j] = y[i]
+
+    return aug_X, aug_y
 
 
 def random_sampling_by_method(method, image, num_samples):
@@ -165,7 +180,12 @@ def frame_to_pixel_sampling(opt, listdir, method):
 
     loss_weights = loss_weights / len(listdir)
 
-    return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means, loss_weights
+    X_train, y_train = X_train[:m], y_train[:m]
+    if opt['augmentation']:
+        aug_X_train, aug_y_train = augmentation(X_train, y_train, opt)
+        X_train, y_train = np.vstack((X_train, aug_X_train)), np.hstack((y_train, aug_y_train))
+
+    return X_train, y_train, X_valid[:n], y_valid[:n], means, loss_weights
 
 
 def prepare_data(opt):
