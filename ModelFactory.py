@@ -8,13 +8,15 @@ class ModelFactory():
 
     @staticmethod
     def create_model(model_name, train_dl, valid_dl, means, inputs_dim, loss_weights, criterion=None, opt=None):
-        loss_weights = loss_weights if loss_weights is not None else np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
         if not criterion or isinstance(criterion, types.FunctionType) or criterion == nn.MSELoss:
             outputs_dim = 1
         else:
             # CrossEntropyLoss
             outputs_dim = TEMP_SCALE * IR_TEMP_FACTOR
-            criterion = criterion(weight=torch.tensor(loss_weights, dtype=torch.float))
+            if loss_weights is None:
+                criterion = criterion()
+            else:
+                criterion = criterion(weight=torch.tensor(loss_weights, dtype=torch.float))
 
         if model_name == 'IRValue':
             if criterion:

@@ -58,15 +58,18 @@ class IRMaker(object):
                 self.IR = (self.IR + POSITIVE_CONST).astype(int)
                 if opt['use_loss_weights']:
                     loss_weights = 1 / np.cbrt((np.bincount(self.IR.flatten()) + 1))
+                    loss_weights = (loss_weights < 1) * loss_weights
                     if loss_weights.shape[0] < TEMP_SCALE * IR_TEMP_FACTOR:
-                        self.loss_weights = np.concatenate((loss_weights, np.ones(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
+                        self.loss_weights = np.concatenate((loss_weights, np.zeros(TEMP_SCALE * IR_TEMP_FACTOR - loss_weights.shape[0])))
                     else:
                         self.loss_weights = loss_weights[: TEMP_SCALE * IR_TEMP_FACTOR]
+                    self.loss_weights /= np.sum(self.loss_weights)
+
                 else:
-                    self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
+                    self.loss_weights = None
 
             else:
-                self.loss_weights = np.ones(TEMP_SCALE * IR_TEMP_FACTOR)
+                self.loss_weights = None
 
         with open('{base_dir}/{dir}/station_data.json'.format(base_dir=BASE_DIR, dir=dir), 'r') as f:
             self.station_data = json.loads(f.read())

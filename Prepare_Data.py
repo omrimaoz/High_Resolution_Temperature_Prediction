@@ -139,11 +139,11 @@ def frame_to_pixel_sampling(opt, listdir, method):
     y_valid = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     m, n = 0, 0
     means = list()
-    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
+    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR) if opt['use_loss_weights']  else None
 
     for dir in listdir:
         IRObj = IRMaker(dir, opt)
-        loss_weights += IRObj.loss_weights
+        loss_weights = loss_weights + IRObj.loss_weights if opt['use_loss_weights'] else None
         dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
             [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
         station_data = IRObj.station_data
@@ -178,7 +178,7 @@ def frame_to_pixel_sampling(opt, listdir, method):
             y_valid[n] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
             n += 1
 
-    loss_weights = loss_weights / len(listdir)
+    loss_weights = loss_weights / len(listdir) if opt['use_loss_weights'] else None
 
     X_train, y_train = X_train[:m], y_train[:m]
     if opt['augmentation']:
