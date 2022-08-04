@@ -199,6 +199,61 @@ class ConvNet(FTP):
             return 0.00001
 
 
+class DeeperConvNet(FTP):
+    name = 'DeeperConvNet'
+    epochs = 20000
+    lr = 1
+
+    def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss(), opt=None):
+        super(DeeperConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
+        self.kernel_size = 5
+        self.pad = 2
+        self.conv_output = IRMaker.FRAME_WINDOW
+        for i in range(4):
+            self.conv_output = (self.conv_output - (self.kernel_size - 1) + self.pad * 2) // 2
+        in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
+        self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 6, kernel_size=self.kernel_size, padding=self.pad)
+        torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
+        # self.bn1 = nn.BatchNorm2d(images_dim * 6)
+        self.conv2 = nn.Conv2d(in_channels=in_channels * 6, out_channels=in_channels * 36, kernel_size=self.kernel_size, padding=self.pad)
+        self.conv3 = nn.Conv2d(in_channels=in_channels * 36, out_channels=in_channels * 72, kernel_size=self.kernel_size, padding=self.pad)
+        self.conv4 = nn.Conv2d(in_channels=in_channels * 72, out_channels=64, kernel_size=self.kernel_size, padding=self.pad)
+
+        # self.bn2 = nn.BatchNorm2d(64)
+        self.fc = nn.Linear(64 * self.conv_output ** 2 + IRMaker.STATION_PARAMS_COUNT, self.outputs_dim)
+
+    def forward(self, x, data=torch.Tensor()):
+        # x = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), 2)
+        # x = F.max_pool2d(F.relu(self.bn2(self.conv2(x))), 2)
+        x = F.max_pool2d(F.relu(self.conv1(x)), 2)
+        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        x = F.max_pool2d(F.relu(self.conv3(x)), 2)
+        x = F.max_pool2d(F.relu(self.conv4(x)), 2)
+
+        x = torch.flatten(x, 1)
+        x2 = data
+        x = torch.cat((x, x2), dim=1)
+        x = F.relu(self.fc(x))
+        return x
+
+    # CE
+    def lambda_scheduler(self, epoch):
+        # CE
+        if self.opt['isCE']:
+            if epoch < 35:
+                return 0.01
+            if epoch < 150:
+                return 0.005
+            return 0.0001
+        # WMSE, MSE
+        else:
+            # if epoch < 50:
+            #     return 0.001
+            # if epoch < 500:
+            #     return 0.0001
+            return 0.00001
+
+
 class PretrainedModel(FTP):
     epochs = 100
     lr = 0.1
@@ -226,13 +281,16 @@ class PretrainedModel(FTP):
 
 class ResNet18(PretrainedModel):
     name = 'ResNet18'
-    epochs = 300
-    lr = 1
+    epochs = 3000
+    lr = 0.1
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt):
-        super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet18(pretrained=False))
-        self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
+        if opt['use_pretrained_weights']:
+            super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet18(pretrained=True))
+        else:
+            super(ResNet18, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt, models.resnet18(pretrained=False))
+            self.pretrained_model.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            torch.nn.init.xavier_uniform(self.pretrained_model.conv1.weight, gain=nn.init.calculate_gain('relu'))
         self.fc_inputs += 1000
         self.fc_with_data = nn.Sequential(
             nn.Linear(self.fc_inputs, 128),
@@ -240,12 +298,12 @@ class ResNet18(PretrainedModel):
             nn.Linear(128, self.outputs_dim))
 
     def lambda_scheduler(self, epoch):
-        if epoch < 30:
-            return 0.2
-        if epoch < 60:
-            return 0.1
-        if epoch < 200:
+        if epoch < 100:
+            return 0.05
+        if epoch < 250:
             return 0.01
+        if epoch < 500:
+            return 0.001
         return 0.0005
 
 

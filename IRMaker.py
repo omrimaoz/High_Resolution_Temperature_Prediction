@@ -18,7 +18,10 @@ class IRMaker(object):
     #                          "IR_temp"]
     STATION_PARAMS_TO_USE = []#["julian_day", "time", "habitat"]
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
-    DATA_MAPS = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
+    # DATA_MAPS = ['Height', 'RealSolar', 'Shade', 'SkyView', 'SLP', 'TGI']
+    DATA_MAPS = ['Height', 'RealSolar', 'SLP']
+    # DATA_MAPS = ['Height', 'SkyView', 'SLP']
+    # DATA_MAPS = ['RGB_R', 'RGB_G', 'RGB_B']
     DATA_MAPS_COUNT = len(DATA_MAPS)
     FRAME_RADIUS = 12
     FRAME_WINDOW = FRAME_RADIUS * 2 + 1
@@ -33,6 +36,9 @@ class IRMaker(object):
         self.SLP = tiff.imread('{base_dir}/{dir}/SLP.tif'.format(base_dir=BASE_DIR, dir=dir))
         self.TGI = tiff.imread('{base_dir}/{dir}/TGI.tif'.format(base_dir=BASE_DIR, dir=dir))
         self.RGB = tiff.imread('{base_dir}/{dir}/RGB.tif'.format(base_dir=BASE_DIR, dir=dir))[:, :, :3]
+        self.RGB_R = self.RGB[:, :, 0]
+        self.RGB_G = self.RGB[:, :, 1]
+        self.RGB_B = self.RGB[:, :, 2]
 
         if opt['normalize']:
             self.Height = (self.Height + 1) / 100
@@ -190,7 +196,10 @@ class IRMaker(object):
             tiff.imsave('{base_dir}/{dir}/Error_{name}_on_PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir, name=name), color_predicted_IR)
 
     def get_data_dict(self):
-        return [self.Height, self.RealSolar, self.Shade, self.SkyView, self.SLP, self.TGI]
+        data = list()
+        for map in self.DATA_MAPS:
+            data.append(eval('self.{}'.format(map)))
+        return data
 
     @staticmethod
     def normalize_image(image):

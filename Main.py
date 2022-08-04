@@ -12,7 +12,8 @@ from Prepare_Data import prepare_data
 from utils import *
 from Dataset import Dataset
 from Models import *
-
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # device = torch.device("mps")
@@ -34,9 +35,10 @@ def save_model(model, MAE):
         model.cache['train_prediction'] = np.array(model.cache['train_prediction'])
     print('Model Saved Successfully')
 
+
 def train_model(model, opt):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=model.lr)
+    optimizer = torch.optim.SGD(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
 
     MAE = None
@@ -194,16 +196,17 @@ if __name__ == '__main__':
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
         'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N'],
-        'model_name': 'ConvNet',
+        'model_name': 'DeeperConvNet',
         'sampling_method': 'SFP',
-        'samples': 30000,
+        'samples': 5000,
         'exclude': False,
         'bias': None,
         'normalize': False,
         'label_kind': 'ir',
-        'use_loss_weights': True,
-        'augmentation': True,
-        'augmentation_p': 0.25
+        'use_loss_weights': False,
+        'augmentation': False,
+        'augmentation_p': 0.25,
+        'use_pretrained_weights': True
     }
     model, mae = get_best_model('', opt['criterion'])
     opt['model'] = model
