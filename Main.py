@@ -143,11 +143,12 @@ def get_best_model(model_name, opt):
 
 def present_distribution(opt):
     IRObjs = list()
-    listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir]
+    listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir] if not opt['dirs'] else opt['dirs']
     for dir in listdir:
         IRObjs.append(IRMaker(dir, opt))
-    border = np.max([np.abs(np.max(IRObj.IR)) for IRObj in IRObjs] + [np.abs(np.min(IRObj.IR)) for IRObj in IRObjs])
-    bins = np.linspace(-border, border, 100)
+    border_top = np.max([np.abs(np.max(IRObj.IR)) for IRObj in IRObjs])
+    border_bottom = np.min([np.abs(np.min(IRObj.IR)) for IRObj in IRObjs])
+    bins = np.linspace(border_bottom, border_top, (border_top - border_bottom) * 5)
     to_stack_histogram(IRObjs,
                        bins,
                        title='IR distribution histograms',
@@ -195,7 +196,7 @@ if __name__ == '__main__':
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Zeelim_29.5.19_1730_W'],
+        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Zeelim_29.5.19_1730_W', 'Mishmar_30.7.19_0640_E'],
         'model_name': 'DeeperConvNet',
         'sampling_method': 'SFP',
         'samples': 5000,
@@ -211,11 +212,11 @@ if __name__ == '__main__':
     model, mae = get_best_model('ResNet18', opt)
     opt['model'] = model
     # model = main(opt) if opt['to_train'] else model
-
+    present_distribution(opt)
     # create_graphs(model.cache)
     # present_distribution(opt)
-    dirs = ['Mishmar_3.3.20_1510_N']
+    dirs = ['Mishmar_30.7.19_0640_E']
     IRObj = IRMaker(dirs[0], opt)
-    IRObj.generate_image(opt)
+    # IRObj.generate_image(opt)
     # IRObj.create_error_histogram()
-    IRObj.generate_error_images()
+    # IRObj.generate_error_images()

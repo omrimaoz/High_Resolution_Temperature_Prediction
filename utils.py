@@ -112,7 +112,7 @@ def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None
 
 def to_stack_histogram(IRObjs, bins, title, ylabel, xlabel, colors, v_val=None, v_label=None):
     for i in range(len(IRObjs)):
-        plt.hist(IRObjs[i].IR.flatten(), bins, alpha=0.5, label=IRObjs[i].dir, color=colors[i])
+        plt.hist(IRObjs[i].IR.flatten(), bins, width=1.0, alpha=0.5, label=IRObjs[i].dir, color=colors[i])
     plt.title(title)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
