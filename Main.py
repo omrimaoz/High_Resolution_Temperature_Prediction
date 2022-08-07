@@ -38,7 +38,7 @@ def save_model(model, MAE):
 
 def train_model(model, opt):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.SGD(parameters, lr=model.lr)
+    optimizer = torch.optim.Adam(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
 
     MAE = None
@@ -81,7 +81,7 @@ def train_model(model, opt):
                 accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
                 accuracy2=np.round(accuracy2, ROUND_CONST),MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
-        if (epoch + 1) % 250 == 0:
+        if (epoch + 1) % 10 == 0:
             save_model(model, MAE)
 
     save_model(model, MAE)
@@ -116,7 +116,7 @@ def validate_model(model, opt):
     return sum_loss / total, accuracy, accuracy1, accuracy2, MAE, MSE
 
 
-def get_best_model(model_name, criterion):
+def get_best_model(model_name, opt):
     if not model_name:
         return None, None
 
@@ -131,7 +131,7 @@ def get_best_model(model_name, criterion):
 
     idx = np.argmin(np.array(scores, dtype=float))
     inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
-    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, criterion, opt).to(device)
+    model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, opt['criterion'], opt).to(device)
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
     # model = torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx]))
@@ -195,7 +195,7 @@ if __name__ == '__main__':
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N'],
+        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Zeelim_29.5.19_1730_W'],
         'model_name': 'DeeperConvNet',
         'sampling_method': 'SFP',
         'samples': 5000,
@@ -208,12 +208,14 @@ if __name__ == '__main__':
         'augmentation_p': 0.25,
         'use_pretrained_weights': True
     }
-    model, mae = get_best_model('', opt['criterion'])
+    model, mae = get_best_model('ResNet18', opt)
     opt['model'] = model
-    model = main(opt) if opt['to_train'] else model
+    # model = main(opt) if opt['to_train'] else model
 
     # create_graphs(model.cache)
     # present_distribution(opt)
-    dirs = ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N']
-    # IRMaker(dir).generate_image(model)
-    # main('ConvNet', model, criterion, 'RFP', 10000, dirs, False, 'mean_ir')
+    dirs = ['Mishmar_3.3.20_1510_N']
+    IRObj = IRMaker(dirs[0], opt)
+    IRObj.generate_image(opt)
+    # IRObj.create_error_histogram()
+    IRObj.generate_error_images()

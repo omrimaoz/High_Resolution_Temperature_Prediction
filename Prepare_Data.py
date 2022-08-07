@@ -22,10 +22,6 @@ data_map = OrderedDict({
 })
 
 
-def get_frame(image, i, j):
-    return image[i: i + IRMaker.FRAME_WINDOW, j: j + IRMaker.FRAME_WINDOW]
-
-
 def augmentation(X, y, opt):
     filters = [rotate_90, rotate_270, vflip, noise] # [rotate_90, rotate_180, rotate_270, vflip, hflip, noise]
     aug_X = np.zeros(shape=(X.shape[0] * len(filters), X.shape[1]))
@@ -155,10 +151,10 @@ def frame_to_pixel_sampling(opt, listdir, method):
         for i, j in zip(train_row, train_col):
             data_samples = list()
             for image in dir_data:
-                frame = get_frame(image, i, j).flatten()
+                frame = IRMaker.get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
             if opt['label_kind'] == 'mean_ir':
-                mean_ir = np.average(get_frame(IRObj.IR, i, j))
+                mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_train[m] = np.array(data_samples)
@@ -168,10 +164,10 @@ def frame_to_pixel_sampling(opt, listdir, method):
         for i, j in zip(valid_row, valid_col):
             data_samples = list()
             for k, image in enumerate(dir_data):
-                frame = get_frame(image, i, j).flatten()
+                frame = IRMaker.get_frame(image, i, j).flatten()
                 data_samples.extend(frame)
             if opt['label_kind'] == 'mean_ir':
-                mean_ir = np.average(get_frame(IRObj.IR, i, j))
+                mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
             for key in IRObj.STATION_PARAMS_TO_USE:
                 data_samples.append(station_data[key])
             X_valid[n] = np.array(data_samples)

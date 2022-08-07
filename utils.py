@@ -75,15 +75,16 @@ def metrics(predictions, actuals, opt):
     return accuracy, accuracy1, accuracy2, MAE, MSE
 
 
-def evaluate_prediceted_IR(dir):
+def evaluate_prediceted_IR(dir, opt):
     RealIR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
-    PredictedIR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir))
+    Predicted_IR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir))
 
-    Accuracy, MAE, MSE = metrics(PredictedIR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR)
-    print('IRMaker Result: Accuracy: {Accuracy}, MAE: {MAE}, MSE: {MSE}'.format(
-        Accuracy=np.round(Accuracy, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
-        MSE=np.round(MSE, ROUND_CONST)
-    ))
+    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(Predicted_IR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR, opt)
+    print('accuracy: {accuracy},accuracy by 1 degree: {accuracy1}, accuracy by 2 degrees: {accuracy2}, MAE: {MAE},'
+          ' MSE: {MSE}'.format(
+        accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
+        accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
+        MSE=np.round(MSE, ROUND_CONST)))
 
 
 def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v_label=None):
@@ -203,3 +204,4 @@ def create_graphs(cache):
              markers=['.'],
              labels=['Pixels error (MSE)']
              )
+

@@ -206,17 +206,21 @@ class DeeperConvNet(FTP):
 
     def __init__(self, train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion=nn.CrossEntropyLoss(), opt=None):
         super(DeeperConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
-        self.kernel_size = 5
-        self.pad = 2
+        self.kernel_size = 4
+        self.pad = 1
         self.conv_output = IRMaker.FRAME_WINDOW
         for i in range(4):
-            self.conv_output = (self.conv_output - (self.kernel_size - 1) + self.pad * 2) // 2
+            if i % 2 == 0:
+                self.conv_output = (self.conv_output - (self.kernel_size - 1) + self.pad * 2) // 2
+            else:
+                self.conv_output = (self.conv_output - (self.kernel_size - 1) + self.pad * 2)
         in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 6, kernel_size=self.kernel_size, padding=self.pad)
         torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
-        # self.bn1 = nn.BatchNorm2d(images_dim * 6)
+        self.bn1 = nn.BatchNorm2d(in_channels * 6)
         self.conv2 = nn.Conv2d(in_channels=in_channels * 6, out_channels=in_channels * 36, kernel_size=self.kernel_size, padding=self.pad)
         self.conv3 = nn.Conv2d(in_channels=in_channels * 36, out_channels=in_channels * 72, kernel_size=self.kernel_size, padding=self.pad)
+        self.bn3 = nn.BatchNorm2d(in_channels * 72)
         self.conv4 = nn.Conv2d(in_channels=in_channels * 72, out_channels=64, kernel_size=self.kernel_size, padding=self.pad)
 
         # self.bn2 = nn.BatchNorm2d(64)
@@ -225,10 +229,10 @@ class DeeperConvNet(FTP):
     def forward(self, x, data=torch.Tensor()):
         # x = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), 2)
         # x = F.max_pool2d(F.relu(self.bn2(self.conv2(x))), 2)
-        x = F.max_pool2d(F.relu(self.conv1(x)), 2)
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        x = F.max_pool2d(F.relu(self.conv3(x)), 2)
-        x = F.max_pool2d(F.relu(self.conv4(x)), 2)
+        x = F.max_pool2d(F.relu(self.bn1(self.conv1(x))), 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(F.relu(self.bn3(self.conv3(x))), 2)
+        x = F.relu(self.conv4(x))
 
         x = torch.flatten(x, 1)
         x2 = data
@@ -241,10 +245,10 @@ class DeeperConvNet(FTP):
         # CE
         if self.opt['isCE']:
             if epoch < 35:
-                return 0.01
+                return 0.1
             if epoch < 150:
-                return 0.005
-            return 0.0001
+                return 0.05
+            return 0.001
         # WMSE, MSE
         else:
             # if epoch < 50:
@@ -298,13 +302,13 @@ class ResNet18(PretrainedModel):
             nn.Linear(128, self.outputs_dim))
 
     def lambda_scheduler(self, epoch):
-        if epoch < 100:
+        if epoch < 30:
             return 0.05
-        if epoch < 250:
-            return 0.01
-        if epoch < 500:
-            return 0.001
-        return 0.0005
+        if epoch < 60:
+            return 0.005
+        if epoch < 100:
+            return 0.0005
+        return 0.0001
 
 
 class ResNet50(PretrainedModel):
