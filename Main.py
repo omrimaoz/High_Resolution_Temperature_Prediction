@@ -49,26 +49,39 @@ def train_model(model, opt):
         sum_loss = 0.0
         total = 0
         for batch, pack in enumerate(model.train_loader):
-            x, y, *data = model.unpack(pack, device)
-            y_pred = model(x, data[0]).to(device) if data else model(x).to(device)
-            y_hat = model.predict(y_pred)
+            X = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs']), 3 * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
+            y = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs'])), dtype=int)
+            m = 0
+            for dir in opt['dirs']:
+                IRObj = IRMaker(dir, opt)
+                dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
+                    [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
+                for k in range(pack[0].shape[0]):
+                    i, j = tuple(pack[0][k])
+                    data_samples = list()
+                    for image in dir_data:
+                        frame = IRMaker.get_frame(image, i, j).flatten()
+                        data_samples.extend(frame)
+                    X[m] = np.array(data_samples)
+                    y[m] = IRObj.IR[i][j]
+                    m += 1
 
-            loss = model.model_loss(y_pred, y, device)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            sub_batch_size = 200
+            ds = Dataset(X, y)
+            dl = DataLoader(ds, batch_size=sub_batch_size, shuffle=True)
+            for sub_batch, sub_pack in enumerate(dl):
+                x, y, *data = model.unpack(sub_pack, device)
+                y_pred = model(x, data[0]).to(device) if data else model(x).to(device)
+                y_hat = model.predict(y_pred)
 
-            scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
-            sum_loss += loss.item() * y.shape[0] * scale_factor
-            total += y.shape[0]
+                loss = model.model_loss(y_pred, y, device)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
-            if epoch == model.epochs - 1:
-                y_cpu, y_hat_cpu = y.cpu(), y_hat.cpu()
-                if model.cache['train_prediction'] is not None:
-                    model.cache['train_prediction'] = np.hstack((model.cache['train_prediction'],
-                                                                      np.vstack([y_cpu, y_hat_cpu])))
-                else:
-                    model.cache['train_prediction'] = np.vstack([y_cpu, y_hat_cpu])
+                scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
+                sum_loss += loss.item() * y.shape[0] * scale_factor
+                total += y.shape[0]
 
         scheduler.step()
         epoch_lr = optimizer.param_groups[0]["lr"]
@@ -93,20 +106,46 @@ def validate_model(model, opt):
     sum_loss = 0.0
     pred = None
     actual = None
-    for x, y in model.valid_loader:
-        x, y, *data = model.unpack((x, y), device)
-        y_cpu = y.cpu()
-        actual = np.array(y_cpu) if actual is None else np.concatenate((actual, y_cpu))
-        y_hat = model(x) if not data else model(x, data[0])
 
-        loss = model.model_loss(y_hat, y, device)
+    for batch, pack in enumerate(model.valid_loader):
+        X = np.zeros(
+            shape=(pack[0].shape[0] * len(opt['dirs']), 3 * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
+            dtype=float)
+        y = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs'])), dtype=int)
+        m = 0
+        for dir in opt['dirs']:
+            IRObj = IRMaker(dir, opt)
+            dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt[
+                                                                                                       'label_kind'] == 'ir' else \
+                [np.pad(IRObj.RGB, pad_width=(
+                (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0, 0)))]
+            for k in range(pack[0].shape[0]):
+                i, j = tuple(pack[0][k])
+                data_samples = list()
+                for image in dir_data:
+                    frame = IRMaker.get_frame(image, i, j).flatten()
+                    data_samples.extend(frame)
+                X[m] = np.array(data_samples)
+                y[m] = IRObj.IR[i][j]
+                m += 1
 
-        y_hat = model.predict(y_hat)
-        y_hat_cpu = y_hat.cpu()
-        pred = np.array(y_hat_cpu) if pred is None else np.concatenate((pred, y_hat_cpu))
-        total += y.shape[0]
-        scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
-        sum_loss += loss.item() * y.shape[0] * scale_factor
+        sub_batch_size = 200
+        ds = Dataset(X, y)
+        dl = DataLoader(ds, batch_size=sub_batch_size, shuffle=True)
+        for sub_batch, sub_pack in enumerate(dl):
+            x, y, *data = model.unpack(sub_pack, device)
+            y_cpu = y.cpu()
+            actual = np.array(y_cpu) if actual is None else np.concatenate((actual, y_cpu))
+            y_hat = model(x) if not data else model(x, data[0])
+
+            loss = model.model_loss(y_hat, y, device)
+
+            y_hat = model.predict(y_hat)
+            y_hat_cpu = y_hat.cpu()
+            pred = np.array(y_hat_cpu) if pred is None else np.concatenate((pred, y_hat_cpu))
+            total += y.shape[0]
+            scale_factor = (TEMP_SCALE * IR_TEMP_FACTOR) ** 2 if opt['normalize'] else 1
+            sum_loss += loss.item() * y.shape[0] * scale_factor
 
     accuracy, accuracy1, accuracy2, MAE, MSE = metrics(pred, actual, opt)
     model.cache['accuracy'].append(accuracy)
@@ -171,7 +210,6 @@ def main(opt):
     #     np.array(json_dict['X_train']), np.array(json_dict['y_train']), np.array(json_dict['X_valid']),\
     #     np.array(json_dict['y_valid']), np.array(json_dict['means']), None
 
-    torch.manual_seed(42)
     batch_size = BATCH_SIZE if BATCH_SIZE else X_train.shape[0] // 10
     train_ds = Dataset(X_train, y_train)
     valid_ds = Dataset(X_valid, y_valid)
@@ -184,7 +222,7 @@ def main(opt):
         opt['model'].means = means
     else:
         model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion'], opt).to(device)
-    model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
+    # model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
     train_model(model, opt)
     return model
 
@@ -196,10 +234,10 @@ if __name__ == '__main__':
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Zeelim_29.5.19_1730_W', 'Mishmar_30.7.19_0640_E'],
-        'model_name': 'DeeperConvNet',
+        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N'], #, 'Zeelim_29.5.19_1730_W', 'Mishmar_30.7.19_0640_E'],
+        'model_name': 'ResNet18',
         'sampling_method': 'SFP',
-        'samples': 5000,
+        'samples': 1000,
         'exclude': False,
         'bias': None,
         'normalize': False,
@@ -209,10 +247,12 @@ if __name__ == '__main__':
         'augmentation_p': 0.25,
         'use_pretrained_weights': True
     }
-    model, mae = get_best_model('ResNet18', opt)
+    model, mae = get_best_model('', opt)
     opt['model'] = model
-    # model = main(opt) if opt['to_train'] else model
-    present_distribution(opt)
+    model = main(opt) if opt['to_train'] else model
+
+    # present_distribution(opt)
+
     # create_graphs(model.cache)
     # present_distribution(opt)
     dirs = ['Mishmar_30.7.19_0640_E']

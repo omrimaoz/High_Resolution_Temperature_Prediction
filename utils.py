@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from torch import nn
 
 ROUND_CONST = 3
-BATCH_SIZE = 200
+BATCH_SIZE = 0
 DEGREE_ERROR = 0.5
 IR_TEMP_FACTOR = 3
 IR_TEMP_DIFF = 0.2
