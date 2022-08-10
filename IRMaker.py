@@ -90,9 +90,6 @@ class IRMaker(object):
         opt['model'].eval()
         if opt['model'].name in ['ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101']:
             predicted_IR = self.generate_image_conv(opt)
-            # Predicted_IR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
-            # predicted_IR = self.reverse_normalization(Predicted_IR, opt)
-
         else:
             predicted_IR = self.generate_image_simple(opt)
         print('Generated PredictedIR Image Time: {}'.format(time.time() - start))
@@ -237,18 +234,17 @@ class IRMaker(object):
     def create_error_histogram(self):
         IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
         predicted_IR = tiff.imread('{base_dir}/{dir}/predictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
-        error_indices = (np.abs(IR.flatten() - predicted_IR.flatten()) > DEGREE_ERROR * 4)
+        error_indices = (np.abs(IR.flatten() - predicted_IR.flatten()) > DEGREE_ERROR)
         error_v = IR.flatten()[error_indices]
         border = np.average(error_v)
         bins = np.linspace(border - 2, border + 2, int((2 * border) / 0.2))
-        to_histogram(error_v,
-                     bins,
-                     title='IR Error Histogram',
-                     ylabel='Counts',
-                     xlabel='IR value',
-                     color='blue',
-                     v_val=np.mean(IR)
-                    )
+        plt.hist(IR.flatten(), bins, width=0.02, alpha=0.5, label=self.dir, color='red')
+        plt.hist(error_v, bins, width=0.02, alpha=0.5, label='error', color='blue')
+        plt.title('IR Error Histogram')
+        plt.ylabel('Counts')
+        plt.xlabel('IR value')
+        plt.legend(loc='upper right')
+        plt.show()
 
     def get_data_dict(self):
         data = list()

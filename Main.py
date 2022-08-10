@@ -94,8 +94,8 @@ def train_model(model, opt):
                 accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
                 accuracy2=np.round(accuracy2, ROUND_CONST),MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
-        if (epoch + 1) % 10 == 0:
-            save_model(model, MAE)
+        # if (epoch + 1) % 3 == 0:
+        save_model(model, MAE)
 
     save_model(model, MAE)
 
@@ -221,9 +221,9 @@ def main(opt):
         opt['model'].valid_loader = valid_dl
         opt['model'].means = means
     else:
-        model = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion'], opt).to(device)
-    # model.cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
-    train_model(model, opt)
+        opt['model'] = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion'], opt).to(device)
+    # opt['model'].cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
+    train_model(opt['model'], opt)
     return model
 
 
@@ -234,10 +234,11 @@ if __name__ == '__main__':
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N'], #, 'Zeelim_29.5.19_1730_W', 'Mishmar_30.7.19_0640_E'],
+        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Mishmar_30.7.19_0820_S', 'Zeelim_7.11.19_1550_W',
+                 'Zeelim_23.9.19_1100_E', 'Zeelim_29.5.19_1730_W'],
         'model_name': 'ResNet18',
-        'sampling_method': 'SFP',
-        'samples': 1000,
+        'sampling_method': 'RFP',
+        'samples': 800,
         'exclude': False,
         'bias': None,
         'normalize': False,
@@ -247,7 +248,7 @@ if __name__ == '__main__':
         'augmentation_p': 0.25,
         'use_pretrained_weights': True
     }
-    model, mae = get_best_model('', opt)
+    model, mae = get_best_model('ResNet18', opt)
     opt['model'] = model
     model = main(opt) if opt['to_train'] else model
 

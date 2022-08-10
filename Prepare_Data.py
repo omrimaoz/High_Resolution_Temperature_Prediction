@@ -128,10 +128,10 @@ def pixel_to_pixel_sampling(opt, listdir, method):
 
 def frame_to_pixel_sampling(opt, listdir, method):
     input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
-    dtype = np.int
-    X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), 2), dtype=dtype)
+    dtype = np.int if opt['isCE'] else np.float
+    X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num* (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
-    X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), 2), dtype=dtype)
+    X_valid = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=np.float)
     y_valid = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     m, n = 0, 0
     means = list()
@@ -140,37 +140,37 @@ def frame_to_pixel_sampling(opt, listdir, method):
     for dir in listdir:
         IRObj = IRMaker(dir, opt)
         loss_weights = loss_weights + IRObj.loss_weights if opt['use_loss_weights'] else None
-        # dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
-        #     [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
-        # station_data = IRObj.station_data
-        # mean_ir = 0
-        # means.append(np.average(IRObj.IR))
+        dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
+            [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
+        station_data = IRObj.station_data
+        mean_ir = 0
+        means.append(np.average(IRObj.IR))
 
         train_row, train_col, valid_row, valid_col = random_sampling_by_method(method, IRObj.IR, opt['samples'])
 
         for i, j in zip(train_row, train_col):
-            # data_samples = list()
-            # for image in dir_data:
-            #     frame = IRMaker.get_frame(image, i, j).flatten()
-            #     data_samples.extend(frame)
-            # if opt['label_kind'] == 'mean_ir':
-            #     mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
-            # for key in IRObj.STATION_PARAMS_TO_USE:
-            #     data_samples.append(station_data[key])
-            X_train[m] = np.array([i,j])
+            data_samples = list()
+            for image in dir_data:
+                frame = IRMaker.get_frame(image, i, j).flatten()
+                data_samples.extend(frame)
+            if opt['label_kind'] == 'mean_ir':
+                mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
+            for key in IRObj.STATION_PARAMS_TO_USE:
+                data_samples.append(station_data[key])
+            X_train[m] = np.array(data_samples)
             y_train[m] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
             m += 1
 
         for i, j in zip(valid_row, valid_col):
-            # data_samples = list()
-            # for k, image in enumerate(dir_data):
-            #     frame = IRMaker.get_frame(image, i, j).flatten()
-            #     data_samples.extend(frame)
-            # if opt['label_kind'] == 'mean_ir':
-            #     mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
-            # for key in IRObj.STATION_PARAMS_TO_USE:
-            #     data_samples.append(station_data[key])
-            X_valid[n] = np.array([i,j])
+            data_samples = list()
+            for k, image in enumerate(dir_data):
+                frame = IRMaker.get_frame(image, i, j).flatten()
+                data_samples.extend(frame)
+            if opt['label_kind'] == 'mean_ir':
+                mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
+            for key in IRObj.STATION_PARAMS_TO_USE:
+                data_samples.append(station_data[key])
+            X_valid[n] = np.array(data_samples)
             y_valid[n] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
             n += 1
 
