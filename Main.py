@@ -92,7 +92,7 @@ def train_model(model, opt):
               ' MSE: {MSE}, time: {time}s, lr: {lr}'.format(
                 epoch=epoch, train_loss=np.round(sum_loss / total, ROUND_CONST), val_loss=np.round(val_loss, ROUND_CONST),
                 accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
-                accuracy2=np.round(accuracy2, ROUND_CONST),MAE=np.round(MAE, ROUND_CONST),
+                accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
         # if (epoch + 1) % 3 == 0:
         save_model(model, MAE)
