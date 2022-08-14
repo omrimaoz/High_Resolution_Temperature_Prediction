@@ -266,9 +266,9 @@ class IRMaker(object):
         error_v = IR.flatten()[error_indices]
         border = np.average(error_v)
         bins = np.linspace(border - 2, border + 2, int((2 * border) / 0.2))
-        plt.hist(IR.flatten(), bins, width=0.02, alpha=0.5, label=self.dir, color='red')
+        plt.hist(IR.flatten(), bins, width=0.02, alpha=0.5, label='IR value', color='red')
         plt.hist(error_v, bins, width=0.02, alpha=0.5, label='error', color='blue')
-        plt.title('IR Error Histogram')
+        plt.title('IR Error Histogram\n{}'.format(self.dir))
         plt.ylabel('Counts')
         plt.xlabel('IR value')
         plt.legend(loc='upper right')

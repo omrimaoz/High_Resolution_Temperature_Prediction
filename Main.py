@@ -157,8 +157,8 @@ def get_best_model(model_name, opt):
         return None, None
 
     listdir = os.listdir(MODELS_DIR)
-    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+\.pt)'.format(model_name=model_name))
-    score_regex = re.compile('{model_name}.+mae([0-9\.]+)\.pt'.format(model_name=model_name))
+    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+.*\.pt)'.format(model_name=model_name))
+    score_regex = re.compile('{model_name}.+mae([0-9\.]+).*\.pt'.format(model_name=model_name))
     models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
     scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
 
