@@ -271,7 +271,7 @@ class PretrainedModel(FTP):
 
     def forward(self, x, data=torch.Tensor()):
         x = self.pretrained_model(x)
-        x = torch.cat((x, data), dim=1)
+        # x = torch.cat((x, data), dim=1)
         x = self.fc_with_data(x)
         return x
 

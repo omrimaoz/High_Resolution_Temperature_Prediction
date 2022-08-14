@@ -15,9 +15,6 @@ from Models import *
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# device = torch.device("mps")
-print('device: ' + str(device))
 
 
 def save_model(model, MAE):
@@ -40,16 +37,16 @@ def train_model(model, opt):
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = torch.optim.Adam(parameters, lr=model.lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=model.lambda_scheduler)
-
+    epochs = opt["epochs"] if opt["epochs"] else model.epochs
     MAE = None
 
-    for epoch in range(model.epochs):
+    for epoch in range(epochs):
         start = time.time()
         model.train()
         sum_loss = 0.0
         total = 0
         for batch, pack in enumerate(model.train_loader):
-            X = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs']), 3 * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
+            X = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs']), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
             y = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs'])), dtype=int)
             m = 0
             for dir in opt['dirs']:
@@ -94,8 +91,8 @@ def train_model(model, opt):
                 accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
                 accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
-        # if (epoch + 1) % 3 == 0:
-        save_model(model, MAE)
+        if (epoch + 1) % 3 == 0:
+            save_model(model, MAE)
 
     save_model(model, MAE)
 
@@ -109,7 +106,7 @@ def validate_model(model, opt):
 
     for batch, pack in enumerate(model.valid_loader):
         X = np.zeros(
-            shape=(pack[0].shape[0] * len(opt['dirs']), 3 * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
+            shape=(pack[0].shape[0] * len(opt['dirs']), IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
             dtype=float)
         y = np.zeros(shape=(pack[0].shape[0] * len(opt['dirs'])), dtype=int)
         m = 0
@@ -203,7 +200,7 @@ def main(opt):
 
     # Prepare data
     X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
-
+    print(X_train.shape)
     # with open('test_data.json', 'r') as f:
     #     json_dict = json.loads(f.read())
     # X_train, y_train, X_valid, y_valid, means, loss_weights = \
@@ -223,6 +220,7 @@ def main(opt):
     else:
         opt['model'] = ModelFactory.create_model(opt['model_name'], train_dl, valid_dl, means, X_train.shape[-1], loss_weights, opt['criterion'], opt).to(device)
     # opt['model'].cache['actual_mean'] = np.average(y_train) / IR_TEMP_FACTOR
+    print('Start Training')
     train_model(opt['model'], opt)
     return model
 
@@ -234,11 +232,10 @@ if __name__ == '__main__':
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_3.3.20_1510_N', 'Mishmar_30.7.19_0820_S', 'Zeelim_7.11.19_1550_W',
-                 'Zeelim_23.9.19_1100_E', 'Zeelim_29.5.19_1730_W'],
+        'dirs': ['Zeelim_23.9.19_1100_E'],
         'model_name': 'ResNet18',
         'sampling_method': 'RFP',
-        'samples': 800,
+        'samples': 2000,
         'exclude': False,
         'bias': None,
         'normalize': False,
@@ -246,11 +243,14 @@ if __name__ == '__main__':
         'use_loss_weights': False,
         'augmentation': False,
         'augmentation_p': 0.25,
-        'use_pretrained_weights': True
+        'augmentation_by_level': None,  # np.array([6, 3, 0, 0, 0]),
+        'use_pretrained_weights': False,
+        "epochs": 0
     }
-    model, mae = get_best_model('ResNet18', opt)
+    model, model_name = get_best_model('ResNet18', opt)
+    print(model_name)
     opt['model'] = model
-    model = main(opt) if opt['to_train'] else model
+    # model = main(opt) if opt['to_train'] else model
 
     # present_distribution(opt)
 
@@ -258,6 +258,9 @@ if __name__ == '__main__':
     # present_distribution(opt)
     dirs = ['Mishmar_30.7.19_0640_E']
     IRObj = IRMaker(dirs[0], opt)
-    # IRObj.generate_image(opt)
-    # IRObj.create_error_histogram()
-    # IRObj.generate_error_images()
+    IRObj.generate_image(opt)
+    IRObj.create_error_histogram()
+    IRObj.generate_error_images_discrete(opt, 5)
+    # IRObj.generate_error_images_continuous()
+    # evaluate_prediceted_IR(dirs[0], opt)
+

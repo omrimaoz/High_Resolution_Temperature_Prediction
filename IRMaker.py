@@ -4,13 +4,13 @@ import time
 import numpy as np
 import tifffile as tiff
 from PIL import Image
+from matplotlib.colors import ListedColormap
 from torch import nn
 from torch.utils.data import DataLoader
 from matplotlib import cm
 
 from Dataset import Dataset
 from utils import *
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class IRMaker(object):
@@ -19,8 +19,8 @@ class IRMaker(object):
     #                          "IR_temp"]
     STATION_PARAMS_TO_USE = []#["julian_day", "time", "habitat"]
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
-    # DATA_MAPS = ['Height', 'RealSolar', 'SLP', 'SkyView', 'Shade', 'TGI']
-    DATA_MAPS = ['Height', 'RealSolar', 'SLP']
+    DATA_MAPS = ['Height', 'RealSolar', 'SLP', 'SkyView', 'Shade', 'TGI']
+    # DATA_MAPS = ['Height', 'RealSolar', 'SLP']
     # DATA_MAPS = ['Height', 'SkyView', 'SLP']
     # DATA_MAPS = ['RGB_R', 'RGB_G', 'RGB_B']
     DATA_MAPS_COUNT = len(DATA_MAPS)
@@ -191,11 +191,10 @@ class IRMaker(object):
 
         return predicted_IR
 
-    def generate_error_images(self):
-        cmap_range = 5
+    def generate_error_images_discrete(self, opt, num_of_levels):
         cmap_mask = (np.arange(1, 257) * (np.arange(1, 257) > 128))
-        cmap_mask = (cmap_mask % (128 // cmap_range - 1) == 0) & (cmap_mask != 0)
-        cmap_mask[255] = 1 if np.sum(cmap_mask) < cmap_range else 0
+        cmap_mask = (cmap_mask % (128 // num_of_levels - 1) == 0) & (cmap_mask != 0)
+        cmap_mask[255] = 1 if np.sum(cmap_mask) < num_of_levels else 0
 
         cmaps = [(cm.Blues(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
                  (cm.Reds(range(256))[:, :3][cmap_mask] * 255).astype(np.uint8),
@@ -212,7 +211,9 @@ class IRMaker(object):
 
         error_image = np.abs(predicted_IR - IR) >= DEGREE_ERROR
         error_image = np.repeat(np.expand_dims(error_image, 2), 3, 2)
+        error_level_counts = np.zeros(num_of_levels)
         for image, cmap, name in color_images:
+            error_level_count = list()
             norm_image = IRMaker.normalize_image(image)
             min = np.min(norm_image)
             max = np.max(norm_image)
@@ -223,13 +224,40 @@ class IRMaker(object):
                 high_level = min + ((max - min) / cmap.shape[0]) * (i + 1)
                 if i == 0:
                     color_image = color_image + ((low_level <= rgb_image) & (rgb_image <= high_level)) * cmap[i]
+                    error_level_count.append(np.sum(((low_level <= rgb_image) & (rgb_image <= high_level)) * error_image) / 3)
                 else:
                     color_image = color_image + ((low_level < rgb_image) & (rgb_image <= high_level)) * cmap[i]
+                    error_level_count.append(np.sum(((low_level < rgb_image) & (rgb_image <= high_level)) * error_image) / 3)
 
+            error_level_counts += np.array(error_level_count)
             color_image = error_image * color_image + (error_image == 0) * rgb_image
             color_predicted_IR = error_image * color_image + (error_image == 0) * norm_predicted_IR
             tiff.imsave('{base_dir}/{dir}/Error_{name}.tif'.format(base_dir=BASE_DIR, dir=self.dir, name=name), color_image)
             tiff.imsave('{base_dir}/{dir}/Error_{name}_on_PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir, name=name), color_predicted_IR)
+
+        opt['augmentation_by_level'] = (error_level_counts / np.sum(error_level_counts) * 5).astype(np.int)
+
+    def generate_error_images_continuous(self):
+        custom_cmaps = list()
+        cmaps = ['Blues', 'Reds', 'Purples', 'Oranges', 'autumn', 'Greens']
+        for cmap in cmaps:
+            cmap_const = 128
+            custom_cmaps.append(ListedColormap(cm.get_cmap(cmap, cmap_const)(np.linspace(0.5, 1, cmap_const)), name='Custom'+cmap))
+
+        names = ['Height', 'RealSolar', 'SLP', 'SkyView', 'Shade', 'TGI']
+
+        color_images = zip(self.get_data_dict(), custom_cmaps, names)
+        predicted_IR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
+        IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
+
+        error_image = np.abs(predicted_IR - IR) < DEGREE_ERROR
+        for image, cmap, name in color_images:
+            masked = np.ma.masked_where(error_image * 1, image)
+            plt.imshow(image, vmin =np.min(image), vmax=np.max(image), cmap='Greys')
+            plt.imshow(masked, vmin=np.min(image), vmax=np.max(image), cmap=cmap, alpha=1)
+            plt.colorbar()
+            plt.show()
+            plt.clf()
 
     def create_error_histogram(self):
         IR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=self.dir))
