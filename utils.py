@@ -9,8 +9,8 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn
 
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("mps")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("mps")
 print('device: ' + str(device))
 
 ROUND_CONST = 3
