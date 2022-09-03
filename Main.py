@@ -91,7 +91,7 @@ def train_model(model, opt):
                 accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
                 accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
-        if (epoch + 1) % 3 == 0:
+        if (epoch + 1) % 1 == 0:
             save_model(model, MAE)
 
     save_model(model, MAE)
@@ -245,7 +245,7 @@ if __name__ == '__main__':
         'augmentation': False,
         'augmentation_p': 0.25,
         'augmentation_by_level': None,  # np.array([6, 3, 0, 0, 0]),
-        'use_pretrained_weights': True,
+        'use_pretrained_weights': False,
         "epochs": 0
     }
     model, model_name = get_best_model('ResNet18', opt)
