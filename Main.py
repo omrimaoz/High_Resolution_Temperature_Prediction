@@ -234,9 +234,9 @@ if __name__ == '__main__':
         'criterion': nn.CrossEntropyLoss,
         'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_30.7.19_0820_S', 'Zeelim_23.9.19_1100_E',
                  'Mishmar_3.3.20_1510_N', 'Zeelim_7.11.19_1550_W', 'Zeelim_29.5.19_1730_W'],
-        'model_name': 'ResNet18',
+        'model_name': 'ConvNet',
         'sampling_method': 'RFP',
-        'samples': 2000,
+        'samples': 5000,
         'exclude': False,
         'bias': None,
         'normalize': False,
@@ -248,7 +248,7 @@ if __name__ == '__main__':
         'use_pretrained_weights': False,
         "epochs": 0
     }
-    model, model_name = get_best_model('ResNet18', opt)
+    model, model_name = get_best_model('ConvNet', opt)
     print(model_name)
     opt['model'] = model
     model = main(opt) if opt['to_train'] else model

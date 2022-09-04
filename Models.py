@@ -157,7 +157,8 @@ class ConvNet(FTP):
         super(ConvNet, self).__init__(train_loader, valid_loader, means, inputs_dim, outputs_dim, criterion, opt)
         self.kernel_size = 5
         self.conv_output = ((((IRMaker.FRAME_WINDOW - (self.kernel_size - 1)) // 2) - (self.kernel_size - 1)) // 2)
-        in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
+        in_channels = IRMaker.DATA_MAPS_COUNT
+        # in_channels = (inputs_dim - IRMaker.STATION_PARAMS_COUNT) // (IRMaker.FRAME_WINDOW ** 2)
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=in_channels * 6, kernel_size=self.kernel_size)
         torch.nn.init.xavier_uniform(self.conv1.weight, gain=nn.init.calculate_gain('relu'))
         # self.bn1 = nn.BatchNorm2d(images_dim * 6)
