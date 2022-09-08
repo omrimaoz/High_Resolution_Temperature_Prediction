@@ -1,7 +1,7 @@
 # High_Resolution_Temperature_Prediction
 Machine Learning Workshop : Project Booklet
 
-Omri Maoz, Dan Barouch\n
+Omri Maoz, Dan Barouch <br />
 Tel-Aviv University
 
 ## Instruction
@@ -21,5 +21,5 @@ Tel-Aviv University
 - epochs -> integer, number of epochs.
 
 # Branch Train_Colab_Large_Data
-Branch to train on Colab with large training dataset\n
+Branch to train on Colab with large training dataset <br />
 Use the notebook on colab after uploading the repository files to google drive.
