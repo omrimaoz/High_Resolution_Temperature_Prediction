@@ -1,13 +1,13 @@
 # High_Resolution_Temperature_Prediction
 Machine Learning Workshop : Project Booklet
 
-Omri Maoz, Dan Barouch
+Omri Maoz, Dan Barouch\n
 Tel-Aviv University
 
 ## Instruction
 
 1. Install python version 3.7 or later.
-2. clone the entire code and datasets from main branch.
+2. Clone the entire code and datasets from main branch.
 3. Install python packages from requierments.txt (On a virtual environment would be preferable).
 4. run "python Main.py --to_train --dirs {dirs} --generate_dir {generate_dir} --model_name {model_name} --sampling_method {sampling_method} --samples {samples} --use_pretrained_weights --epochs {epochs}" in terminal from the root folder. replace each input from the bank:
 
@@ -21,5 +21,5 @@ Tel-Aviv University
 - epochs -> integer, number of epochs.
 
 # Branch Train_Colab_Large_Data
-Branch to train on Colab with large training dataset
+Branch to train on Colab with large training dataset\n
 Use the notebook on colab after uploading the repository files to google drive.
