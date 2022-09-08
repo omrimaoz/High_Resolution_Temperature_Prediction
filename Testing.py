@@ -18,7 +18,7 @@ def test_model(model):
     model.eval()
     results = list()
     for x, y in model.valid_loader:
-        x, y, *data = model.unpack((x, y), device)
+        x, y, *data = model.unpack((x, y), device, opt)
         y_hat = model(x) if not data else model(x, data[0])
         results.append(tuple(model.predict(y_hat).tolist()))
     return results
@@ -79,15 +79,15 @@ def random_similar_sampling_by_method(method, image, metric):
         return test_row, test_col
 
 def frame_to_pixel_similarities(dir, method, metric):
-    IRObj = IRMaker(dir, train=True)
-    dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
+    IRObj = IRMaker(dir, opt)
+    dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict(opt)]
     station_data = IRObj.station_data
     label_data = IRObj.IR
 
     low = np.min(label_data)
     high = np.max(label_data)
     num_samples = 2 * int((high - low) / (IR_TEMP_DIFF / (TEMP_SCALE * IR_TEMP_FACTOR)))
-    X = np.zeros(shape=(int(num_samples) * 2, IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
+    X = np.zeros(shape=(int(num_samples) * 2, (IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction']) * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT), dtype=float)
     y = np.zeros(shape=(int(num_samples)) * 2, dtype=float)
     k = 0
 
@@ -121,8 +121,8 @@ def find_similar_frames(model_name, dir):
 
 
 def find_all_frames(num_samples, dir):
-    IRObj = IRMaker(dir, train=True)
-    dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()]
+    IRObj = IRMaker(dir, opt)
+    dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict(opt)]
     station_data = IRObj.station_data
     label_data = IRObj.IR
 
@@ -131,7 +131,7 @@ def find_all_frames(num_samples, dir):
     indices = list(zip(row_indices, col_indices))
     random.shuffle(indices)
 
-    X = np.zeros(shape=(num_samples, IRMaker.DATA_MAPS_COUNT * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
+    X = np.zeros(shape=(num_samples, (IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction']) * (IRMaker.FRAME_WINDOW ** 2) + IRMaker.STATION_PARAMS_COUNT),
                  dtype=float)
     y = np.zeros(shape=(num_samples), dtype=float)
     k = 0

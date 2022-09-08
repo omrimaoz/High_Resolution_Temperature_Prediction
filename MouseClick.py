@@ -6,4 +6,4 @@ mouse = Controller()
 while True:
     mouse.click(Button.left, 1)
     print('click')
-    time.sleep(20)
+    time.sleep(40)
