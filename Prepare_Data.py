@@ -22,13 +22,18 @@ data_map = OrderedDict({
 })
 
 
-def augmentation(X, y, opt):
+def augmentation(X, y, opt, num=0):
     filters = [rotate_90, rotate_270, vflip, noise] # [rotate_90, rotate_180, rotate_270, vflip, hflip, noise]
+    if num:
+        if num > 4:
+            filters += [noise] * (num - 4)
+        else:
+            filters = random.sample(filters, num)
     aug_X = np.zeros(shape=(X.shape[0] * len(filters), X.shape[1]))
     aug_y = np.zeros(shape=(X.shape[0] * len(filters)))
 
     for i in range(X.shape[0]):
-        frame = X[i].reshape(IRMaker.DATA_MAPS_COUNT, IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW)
+        frame = X[i].reshape(IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction'], IRMaker.FRAME_WINDOW, IRMaker.FRAME_WINDOW)
         for j, filter in enumerate(filters):
             aug_X[i * len(filters) + j] = filter(frame, opt['augmentation_p']).flatten()
             aug_y[i * len(filters) + j] = y[i]
@@ -81,7 +86,8 @@ def random_sampling_by_method(method, image, num_samples):
 
 
 def pixel_to_pixel_sampling(opt, listdir, method):
-    input_image_num = IRMaker.DATA_MAPS_COUNT if opt['label_kind'] == 'ir' else 3
+    input_image_num = IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction'] if opt['label_kind'] == 'ir' else 3
+    input_image_num += IRMaker.STATION_PARAMS_COUNT
     dtype = np.int if opt['isCE'] else np.float
     X_train = np.zeros(shape=(int(opt['samples'] * len(listdir)), input_image_num), dtype=np.float)
     y_train = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
@@ -89,12 +95,12 @@ def pixel_to_pixel_sampling(opt, listdir, method):
     y_valid = np.zeros(shape=(int(opt['samples'] * len(listdir))), dtype=dtype)
     m, n = 0, 0
     means = list()
-    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR)
+    loss_weights = np.zeros(TEMP_SCALE * IR_TEMP_FACTOR) if opt['use_loss_weights']  else None
 
     for dir in listdir:
         IRObj = IRMaker(dir, opt)
-        loss_weights += IRObj.loss_weights
-        dir_data = IRObj.get_data_dict()
+        loss_weights = loss_weights + IRObj.loss_weights if opt['use_loss_weights'] else None
+        dir_data = IRObj.get_data_dict(opt)
         station_data = IRObj.station_data
         label_data = IRObj.IR
         means.append(np.average(IRObj.IR))
@@ -121,7 +127,7 @@ def pixel_to_pixel_sampling(opt, listdir, method):
             y_valid[n] = label_data[i][j]
             n += 1
 
-    loss_weights = loss_weights / len(listdir)
+    loss_weights = loss_weights / len(listdir) if opt['use_loss_weights'] else None
 
     return X_train[:m], y_train[:m], X_valid[:n], y_valid[:n], means, loss_weights
 
@@ -155,10 +161,8 @@ def frame_to_pixel_sampling(opt, listdir, method):
             #     data_samples.extend(frame)
             # if opt['label_kind'] == 'mean_ir':
             #     mean_ir = np.average(IRMaker.get_frame(IRObj.IR, i, j))
-            # for key in IRObj.STATION_PARAMS_TO_USE:
-            #     data_samples.append(station_data[key])
             X_train[m] = np.array([i,j])
-            y_train[m] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
+            y_train[m] = IRObj.IR[i][j]
             m += 1
 
         for i, j in zip(valid_row, valid_col):
@@ -171,7 +175,7 @@ def frame_to_pixel_sampling(opt, listdir, method):
             # for key in IRObj.STATION_PARAMS_TO_USE:
             #     data_samples.append(station_data[key])
             X_valid[n] = np.array([i,j])
-            y_valid[n] = IRObj.IR[i][j] if opt['label_kind'] == 'ir' else mean_ir
+            y_valid[n] = IRObj.IR[i][j]
             n += 1
 
     loss_weights = loss_weights / len(listdir) if opt['use_loss_weights'] else None
@@ -206,7 +210,7 @@ def prepare_data(opt):
         - From Station: Julian Day, Day Time, Habitat, Wind Speed, Air Temperature, Ground Temperature Humidity, Pressure, Radiation.   
     '''
 
-    inputs = IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
+    # inputs = IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction'] + IRMaker.STATION_PARAMS_COUNT
     if opt['sampling_method'] == 'SPP':
         X_train, y_train, X_valid, y_valid, means, loss_weights = pixel_to_pixel_sampling(opt, listdir, 'Simple')
     if opt['sampling_method'] == 'RPP':
@@ -214,7 +218,9 @@ def prepare_data(opt):
     if opt['sampling_method'] == 'SFP':
         X_train, y_train, X_valid, y_valid, means, loss_weights = frame_to_pixel_sampling(opt, listdir, 'Simple')
     if opt['sampling_method'] == 'RFP':
-        inputs = IRMaker.DATA_MAPS
+        # inputs = IRMaker.DATA_MAPS
+        # if opt['pretrained_ResNet18_correction']:
+            # inputs = IRMaker.DATA_MAPS[:3]
         X_train, y_train, X_valid, y_valid, means, loss_weights = frame_to_pixel_sampling(opt, listdir, 'Relative')
 
     return X_train, y_train, X_valid, y_valid, means, loss_weights

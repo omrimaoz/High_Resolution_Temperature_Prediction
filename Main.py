@@ -1,3 +1,4 @@
+import argparse
 import time
 
 import numpy as np
@@ -17,8 +18,11 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 
 
-def save_model(model, MAE):
-    path = '{dir}/{model}_{time}'.format(dir=MODELS_DIR, model=model.name,
+def save_model(model, MAE, opt):
+    model_name = model.name
+    if opt['pretrained_ResNet18_correction']:
+        model_name += '_Pretrained'
+    path = '{dir}/{model}_{time}'.format(dir=MODELS_DIR, model=model_name,
                                          time=datetime.now().strftime('%d%m%y'))
     if MAE:
         path += '_mae{mae}'.format(mae=np.round(MAE, ROUND_CONST))
@@ -51,7 +55,8 @@ def train_model(model, opt):
             m = 0
             for dir in opt['dirs']:
                 IRObj = IRMaker(dir, opt)
-                dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt['label_kind'] == 'ir' else \
+                station_data = IRObj.station_data
+                dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict(opt)] if opt['label_kind'] == 'ir' else \
                     [np.pad(IRObj.RGB, pad_width=((IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0,0)))]
                 for k in range(pack[0].shape[0]):
                     i, j = tuple(pack[0][k])
@@ -59,6 +64,8 @@ def train_model(model, opt):
                     for image in dir_data:
                         frame = IRMaker.get_frame(image, i, j).flatten()
                         data_samples.extend(frame)
+                    for key in IRObj.STATION_PARAMS_TO_USE:
+                        data_samples.append(station_data[key])
                     X[m] = np.array(data_samples)
                     y[m] = IRObj.IR[i][j]
                     m += 1
@@ -67,7 +74,7 @@ def train_model(model, opt):
             ds = Dataset(X, y)
             dl = DataLoader(ds, batch_size=sub_batch_size, shuffle=True)
             for sub_batch, sub_pack in enumerate(dl):
-                x, y, *data = model.unpack(sub_pack, device)
+                x, y, *data = model.unpack(sub_pack, device, opt)
                 y_pred = model(x, data[0]).to(device) if data else model(x).to(device)
                 y_hat = model.predict(y_pred)
 
@@ -92,9 +99,9 @@ def train_model(model, opt):
                 accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
                 MSE=np.round(MSE, ROUND_CONST), time=int(end-start), lr=epoch_lr))
         if (epoch + 1) % 1 == 0:
-            save_model(model, MAE)
+            save_model(model, MAE, opt)
 
-    save_model(model, MAE)
+    save_model(model, MAE, opt)
 
 
 def validate_model(model, opt):
@@ -112,7 +119,8 @@ def validate_model(model, opt):
         m = 0
         for dir in opt['dirs']:
             IRObj = IRMaker(dir, opt)
-            dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict()] if opt[
+            station_data = IRObj.station_data
+            dir_data = [np.pad(image, IRMaker.FRAME_RADIUS) for image in IRObj.get_data_dict(opt)] if opt[
                                                                                                        'label_kind'] == 'ir' else \
                 [np.pad(IRObj.RGB, pad_width=(
                 (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (IRMaker.FRAME_RADIUS, IRMaker.FRAME_RADIUS), (0, 0)))]
@@ -122,6 +130,8 @@ def validate_model(model, opt):
                 for image in dir_data:
                     frame = IRMaker.get_frame(image, i, j).flatten()
                     data_samples.extend(frame)
+                for key in IRObj.STATION_PARAMS_TO_USE:
+                    data_samples.append(station_data[key])
                 X[m] = np.array(data_samples)
                 y[m] = IRObj.IR[i][j]
                 m += 1
@@ -130,7 +140,7 @@ def validate_model(model, opt):
         ds = Dataset(X, y)
         dl = DataLoader(ds, batch_size=sub_batch_size, shuffle=True)
         for sub_batch, sub_pack in enumerate(dl):
-            x, y, *data = model.unpack(sub_pack, device)
+            x, y, *data = model.unpack(sub_pack, device, opt)
             y_cpu = y.cpu()
             actual = np.array(y_cpu) if actual is None else np.concatenate((actual, y_cpu))
             y_hat = model(x) if not data else model(x, data[0])
@@ -156,9 +166,12 @@ def get_best_model(model_name, opt):
     if not model_name:
         return None, None
 
+    if opt['pretrained_ResNet18_correction']:
+        model_name += '_Pretrained'
+
     listdir = os.listdir(MODELS_DIR)
-    acceptable_models = re.compile('({model_name}.+mae[0-9\.]+.*\.pt)'.format(model_name=model_name))
-    score_regex = re.compile('{model_name}.+mae([0-9\.]+).*\.pt'.format(model_name=model_name))
+    acceptable_models = re.compile('({model_name}_.*mae[0-9\.]+.*\.pt)'.format(model_name=model_name))
+    score_regex = re.compile('{model_name}_.*mae([0-9\.]+).*\.pt'.format(model_name=model_name))
     models = [re.search(acceptable_models, model).groups()[0] for model in listdir if re.findall(acceptable_models, model)]
     scores = [re.search(score_regex, model).groups()[0] for model in listdir if re.findall(score_regex, model)]
 
@@ -166,7 +179,11 @@ def get_best_model(model_name, opt):
         return None, None
 
     idx = np.argmin(np.array(scores, dtype=float))
-    inputs_dim = IRMaker.FRAME_WINDOW ** 2 * IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT
+    if opt['sampling_method'] in ['SPP', 'RPP']:
+        inputs_dim = IRMaker.DATA_MAPS_COUNT + IRMaker.STATION_PARAMS_COUNT - opt['pretrained_ResNet18_correction']
+    else:
+        inputs_dim = IRMaker.FRAME_WINDOW ** 2 * (IRMaker.DATA_MAPS_COUNT - opt['pretrained_ResNet18_correction']) + IRMaker.STATION_PARAMS_COUNT
+    model_name = model_name.replace('_Pretrained', '')
     model = ModelFactory.create_model(model_name, None, None, None, inputs_dim, None, opt['criterion'], opt).to(device)
     model.load_state_dict(torch.load('{dir}/{model}'.format(dir=MODELS_DIR, model=models[idx])))
     model.eval()
@@ -178,29 +195,30 @@ def get_best_model(model_name, opt):
 
 
 def present_distribution(opt):
+    print('Plot Distribution')
     IRObjs = list()
     listdir = [dir for dir in os.listdir(BASE_DIR) if 'properties' not in dir and '.DS_Store' not in dir] if not opt['dirs'] else opt['dirs']
     for dir in listdir:
         IRObjs.append(IRMaker(dir, opt))
-    border_top = np.max([np.abs(np.max(IRObj.IR)) for IRObj in IRObjs])
-    border_bottom = np.min([np.abs(np.min(IRObj.IR)) for IRObj in IRObjs])
+    border_top = int(np.max([np.max(IRObj.IR) for IRObj in IRObjs]))
+    border_bottom = int(np.min([np.min(IRObj.IR) for IRObj in IRObjs]))
     bins = np.linspace(border_bottom, border_top, (border_top - border_bottom) * 5)
     to_stack_histogram(IRObjs,
                        bins,
                        title='IR distribution histograms',
                        ylabel='Counts',
                        xlabel='IR value',
-                       colors=['blue', 'red', 'orange', 'green', 'brown', 'pink', 'purple', 'cyan', 'brown', 'gray', 'olive']
+                       colors=['blue', 'red', 'orange', 'green', 'brown', 'pink', 'purple', 'cyan', 'gray', 'olive']
                        )
 
 
 def main(opt):
+    print('Prepare Data')
     # Create json station data for each folder
     csv_to_json('./resources/properties/data_table.csv')
 
     # Prepare data
     X_train, y_train, X_valid, y_valid, means, loss_weights = prepare_data(opt)
-    print(X_train.shape)
     # with open('test_data.json', 'r') as f:
     #     json_dict = json.loads(f.read())
     # X_train, y_train, X_valid, y_valid, means, loss_weights = \
@@ -225,15 +243,30 @@ def main(opt):
     return model
 
 
+def get_args():
+    """A Helper function that defines the program arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--to_train', action='store_true')
+    parser.add_argument('--dirs', type=str, default='["Mishmar_30.7.19_0640_E"]')
+    parser.add_argument('--generate_dir', type=str, default='["Mishmar_30.7.19_0640_E"]')
+    parser.add_argument('--model_name', type=str, default='ResNet18')
+    parser.add_argument('--sampling_method', type=str, default='RFP')
+    parser.add_argument('--samples', type=int, default=5000)
+    parser.add_argument('--use_pretrained_weights', action='store_true')
+    parser.add_argument('--epochs', type=int, default=0)
+    args = parser.parse_args()
+    return args
+
+
 if __name__ == '__main__':
     # Choose Model: 'IRValue', 'IRClass', 'ConvNet', 'ResNet18', 'ResNet50', 'InceptionV3', 'VGG19', 'ResNetXt101'
-
     opt = {
         'to_train': True,
         'isCE': True,
         'criterion': nn.CrossEntropyLoss,
-        'dirs': ['Zeelim_30.5.19_0630_E', 'Mishmar_30.7.19_0820_S', 'Zeelim_23.9.19_1100_E',
-                 'Mishmar_3.3.20_1510_N', 'Zeelim_7.11.19_1550_W', 'Zeelim_29.5.19_1730_W'],
+        'dirs': ['Zeelim_30.5.19_0630_E'], #, 'Mishmar_30.7.19_0640_E', 'Mishmar_30.7.19_0820_S', 'Zeelim_23.9.19_1100_E',
+                 # 'Mishmar_3.3.20_1510_N', 'Zeelim_7.11.19_1550_W', 'Zeelim_29.5.19_1730_W'],
+        'generate_dir': ['Zeelim_30.5.19_0630_E'],
         'model_name': 'ConvNet',
         'sampling_method': 'RFP',
         'samples': 5000,
@@ -244,24 +277,34 @@ if __name__ == '__main__':
         'use_loss_weights': False,
         'augmentation': False,
         'augmentation_p': 0.25,
-        'augmentation_by_level': None,  # np.array([6, 3, 0, 0, 0]),
+        'augmentation_by_level': None, #np.array([6, 3, 0, 0, 0]),
         'use_pretrained_weights': False,
-        "epochs": 0
+        'pretrained_ResNet18_correction': 0,
+        "epochs": 10
     }
-    model, model_name = get_best_model('ConvNet', opt)
-    print(model_name)
-    opt['model'] = model
-    model = main(opt) if opt['to_train'] else model
+    args = get_args()
+    for arg in vars(args):
+        if arg == 'dirs' or arg == 'generate_dir':
+            opt[arg] = json.loads(getattr(args, arg))
+        else:
+            opt[arg] = getattr(args, arg)
 
-    # present_distribution(opt)
+    csv_to_json('./resources/properties/data_table.csv')
+    opt['pretrained_ResNet18_correction'] = 3 if opt['use_pretrained_weights'] and opt['model_name'] == 'ResNet18' else 0
+    model, model_name = get_best_model('ResNet18', opt)
+    print('Found model: {}'.format(model_name))
+    opt['model'] = model
+    if opt['to_train']:
+        main(opt)
+        present_distribution(opt)
 
     # create_graphs(model.cache)
-    # present_distribution(opt)
-    dirs = ['Mishmar_30.7.19_0640_E']
-    IRObj = IRMaker(dirs[0], opt)
+
+    IRObj = IRMaker(opt['generate_dir'][0], opt)
     # IRObj.generate_image(opt)
-    # IRObj.create_error_histogram()
-    # IRObj.generate_error_images_discrete(opt, 5)
-    # IRObj.generate_error_images_continuous()
-    # evaluate_prediceted_IR(dirs[0], opt)
+    IRObj.create_error_histogram(opt)
+    IRObj.create_base_histogram(opt)
+    IRObj.mark_weather_station_on_image(opt)
+    IRObj.generate_error_images_discrete(opt, 5)
+    IRObj.generate_error_images_continuous(opt)
 

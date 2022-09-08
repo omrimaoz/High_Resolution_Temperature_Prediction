@@ -55,8 +55,11 @@ def csv_to_json(path):
             if row[i] in locations:
                 data_json[fields[i]] = locations[row[i]]
             else:
-                if 'temp' in fields[i]:
-                    data_json[fields[i]] = (float(row[i]) - 273.5) / (TEMP_SCALE * IR_TEMP_FACTOR)
+                if 'temp' in fields[i] or 'eBee' in fields[i] and row[i]:
+                    if 'eBee_C' in fields[i]:
+                        data_json[fields[i]] = float(row[i]) / (TEMP_SCALE * IR_TEMP_FACTOR)
+                    else:
+                        data_json[fields[i]] = (float(row[i]) - 273.5) / (TEMP_SCALE * IR_TEMP_FACTOR)
                 elif not row[i] or float(row[i]) < 500:
                     data_json[fields[i]] = float(row[i]) / 500 if row[i] else 0.
                 else:
@@ -72,19 +75,32 @@ def metrics(predictions, actuals, opt):
     # downscale_factor = 1 / IR_TEMP_FACTOR if opt['isCE'] else upscale_factor
     MAE = float(np.average(np.abs(actuals - predictions))) * upscale_factor
     MSE = float(np.average(np.power(actuals - predictions, 2))) * upscale_factor ** 2
-    accuracy = float(np.sum(((np.abs(actuals - predictions) < DEGREE_ERROR / upscale_factor) * 1.)) / actuals.shape[0])
-    accuracy1 = float(np.sum(((np.abs(actuals - predictions) < 1 / upscale_factor) * 1.)) / actuals.shape[0])
-    accuracy2 = float(np.sum(((np.abs(actuals - predictions) < 2 / upscale_factor) * 1.)) / actuals.shape[0])
+    accuracy = float(np.round(np.average((np.abs(actuals - predictions) < DEGREE_ERROR / upscale_factor) * 1.), ROUND_CONST))
+    accuracy1 = float(np.round(np.average((np.abs(actuals - predictions) < 1 / upscale_factor) * 1.), ROUND_CONST))
+    accuracy2 = float(np.round(np.average((np.abs(actuals - predictions) < 2 / upscale_factor) * 1.), ROUND_CONST))
 
     return accuracy, accuracy1, accuracy2, MAE, MSE
 
 
-def evaluate_prediceted_IR(dir, opt):
+def find_pixel_position_by_temp(dir, temp):
+    RealIR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
+    temp_distance = np.abs(RealIR.flatten() - temp)
+    index = np.argmin(temp_distance)
+    px, py = index // 1000, index % 1000
+    return px, py
+
+
+def evaluate_predicted_IR(dir, opt):
     RealIR = tiff.imread('{base_dir}/{dir}/IR.tif'.format(base_dir=BASE_DIR, dir=dir))
     Predicted_IR = tiff.imread('{base_dir}/{dir}/PredictedIR.tif'.format(base_dir=BASE_DIR, dir=dir))
 
-    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(Predicted_IR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR, opt)
-    print('accuracy: {accuracy},accuracy by 1 degree: {accuracy1}, accuracy by 2 degrees: {accuracy2}, MAE: {MAE},'
+    if opt['isCE']:
+        Predicted_IR, RealIR = Predicted_IR.flatten() * IR_TEMP_FACTOR, RealIR.flatten() * IR_TEMP_FACTOR
+    else:
+        factor = TEMP_SCALE * IR_TEMP_FACTOR
+        Predicted_IR, RealIR = Predicted_IR.flatten() / factor, RealIR.flatten() / factor
+    accuracy, accuracy1, accuracy2, MAE, MSE = metrics(Predicted_IR, RealIR, opt)
+    print('accuracy: {accuracy}, accuracy by 1 degree: {accuracy1}, accuracy by 2 degrees: {accuracy2}, MAE: {MAE},'
           ' MSE: {MSE}'.format(
         accuracy=np.round(accuracy, ROUND_CONST), accuracy1=np.round(accuracy1, ROUND_CONST),
         accuracy2=np.round(accuracy2, ROUND_CONST), MAE=np.round(MAE, ROUND_CONST),
@@ -100,7 +116,7 @@ def to_graph(y, x, title, ylabel, xlabel, colors, markers, labels, v_val=None, v
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     plt.legend(loc=0)
-    plt.show()  # uncomment if you want to show graphs
+    plt.show()
 
 
 def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None):
@@ -111,12 +127,12 @@ def to_histogram(x, bins, title, ylabel, xlabel, color, v_val=None, v_label=None
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     plt.legend(loc=0)
-    plt.show()  # uncomment if you want to show graphs
+    plt.show()
 
 
 def to_stack_histogram(IRObjs, bins, title, ylabel, xlabel, colors, v_val=None, v_label=None):
     for i in range(len(IRObjs)):
-        plt.hist(IRObjs[i].IR.flatten(), bins, width=1.0, alpha=0.5, label=IRObjs[i].dir, color=colors[i])
+        plt.hist(IRObjs[i].IR.flatten(), bins, width=1, alpha=0.4, label=IRObjs[i].dir, color=colors[i])
     plt.title(title)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
@@ -196,7 +212,6 @@ def create_graphs(cache):
     train_validation = cache['train_prediction'].copy()
     train_validation[0] = (train_validation[0] - train_validation[1]) ** 2
     train_validation[1] = np.abs(cache['actual_mean'] - train_validation[1])
-    # train_validation[1] = train_validation[1] -
     train_validation = train_validation[:, train_validation[0].argsort()]
 
     to_graph(y=train_validation[0],
