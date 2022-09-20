@@ -234,7 +234,7 @@ if __name__ == '__main__':
     args = get_args()
     for arg in vars(args):
         if arg == 'dirs' or arg == 'generate_dir':
-            opt[arg] = json.loads(getattr(args, arg))
+            opt[arg] = json.loads(getattr(args, arg).replace("\'", '\"'))
         else:
             opt[arg] = getattr(args, arg)
 
