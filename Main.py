@@ -240,7 +240,7 @@ if __name__ == '__main__':
 
     csv_to_json('./resources/properties/data_table.csv')
     opt['pretrained_ResNet18_correction'] = 3 if opt['use_pretrained_weights'] and opt['model_name'] == 'ResNet18' else 0
-    model, model_name = get_best_model('ResNet18', opt)
+    model, model_name = get_best_model(opt['model_name'], opt)
     print('Found model: {}'.format(model_name))
     opt['model'] = model
     if opt['to_train']:
