@@ -19,7 +19,7 @@ class IRMaker(object):
     # STATION_PARAMS_TO_USE = ["julian_day", 'time', "habitat", "wind_speed", "temperature", "humidity", "pressure",
     #                          "radiation",
     #                          "IR_temp"]
-    STATION_PARAMS_TO_USE = ["julian_day", "time", "habitat"]
+    STATION_PARAMS_TO_USE = [] # ["julian_day", "time", "habitat"]
     STATION_PARAMS_COUNT = len(STATION_PARAMS_TO_USE)
     DATA_MAPS = ['Height', 'RealSolar', 'SLP', 'SkyView', 'Shade', 'TGI']
     DATA_MAPS_COUNT = len(DATA_MAPS)
