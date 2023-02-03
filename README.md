@@ -1,5 +1,6 @@
 # High_Resolution_Temperature_Prediction
-Machine Learning Workshop : Project Booklet
+Machine Learning Workshop : [Project Booklet](https://github.com/omrimaoz/High_Resolution_Temperature_Prediction/blob/main/High%20Resolution%20Temperature%20Prediction%20-%20Project%20Booklet.pdf)
+
 
 Omri Maoz, Dan Barouch <br />
 Tel-Aviv University
